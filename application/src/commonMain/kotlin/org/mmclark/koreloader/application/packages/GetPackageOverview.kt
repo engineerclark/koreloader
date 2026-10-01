@@ -59,7 +59,7 @@ class GetPackageOverview(
             val state = inventory.installed[definition.id] ?: InstalledState.NotInstalled
             val lookup = releases.getValue(definition.id).await()
             val list = (lookup as? ReleasesLookup.Found)?.releases.orEmpty()
-            definition.id to Triple(lookup, state, PackageStatusPolicy.status(state, list, device.firmware))
+            definition.id to Triple(lookup, state, PackageStatusPolicy.status(state, list, device.firmware, inventory.koboUpdatePending))
         }
         val overviews = Packages.all.map { definition ->
             val (lookup, state, status) = statuses.getValue(definition.id)

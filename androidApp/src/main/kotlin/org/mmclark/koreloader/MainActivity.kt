@@ -16,11 +16,9 @@ import org.mmclark.koreloader.domain.catalog.PackageId
 import org.mmclark.koreloader.presentation.home.HomeViewModel
 import org.mmclark.koreloader.presentation.packages.PackageDetailViewModel
 import org.mmclark.koreloader.presentation.packages.PackagesViewModel
-import org.mmclark.koreloader.presentation.storagecheck.StorageCheckViewModel
 import org.mmclark.koreloader.ui.home.HomeScreen
 import org.mmclark.koreloader.ui.packages.PackageDetailScreen
 import org.mmclark.koreloader.ui.packages.PackagesScreen
-import org.mmclark.koreloader.ui.storagecheck.StorageCheckScreen
 import org.mmclark.koreloader.ui.theme.KoreloaderTheme
 
 class MainActivity : ComponentActivity() {
@@ -41,7 +39,6 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             viewModel = home,
                             onManagePackages = { navController.navigate("packages") },
-                            onOpenStorageTest = { navController.navigate("storage") },
                         )
                     }
                     composable("packages") {
@@ -67,12 +64,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         PackageDetailScreen(viewModel, onBack = { navController.popBackStack() })
-                    }
-                    composable("storage") {
-                        val viewModel = viewModel {
-                            StorageCheckViewModel(container.volumeFactory, container.detectKoboDevice, container.runStorageCheck)
-                        }
-                        StorageCheckScreen(viewModel, onBack = { navController.popBackStack() })
                     }
                 }
             }

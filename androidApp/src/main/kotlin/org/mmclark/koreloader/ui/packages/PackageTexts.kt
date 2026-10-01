@@ -8,6 +8,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.mmclark.koreloader.R
 import org.mmclark.koreloader.application.device.DeviceDetection
@@ -35,14 +36,14 @@ fun PackageStatus.label(): StatusLabel = when (this) {
     is PackageStatus.Installed -> when {
         removalPending -> StatusLabel("Removal pending: eject the Kobo", StatusTone.Attention)
         needsReinstall -> StatusLabel("Reinstall needed (firmware updated)", StatusTone.Problem)
-        updateAvailable -> StatusLabel("$version · update to $latestVersion", StatusTone.Attention)
+        updateAvailable -> StatusLabel("Installed $version · update available ($latestVersion)", StatusTone.Attention)
         version == null -> StatusLabel("Installed · version unknown", StatusTone.Good)
         else -> StatusLabel("Installed $version", StatusTone.Good)
     }
 }
 
 @Composable
-fun StatusChip(label: StatusLabel, modifier: Modifier = Modifier) {
+fun StatusChip(label: StatusLabel, modifier: Modifier = Modifier, singleLine: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val (container, content) = when (label.tone) {
         StatusTone.Neutral -> colors.surfaceVariant to colors.onSurfaceVariant
@@ -51,7 +52,14 @@ fun StatusChip(label: StatusLabel, modifier: Modifier = Modifier) {
         StatusTone.Problem -> colors.errorContainer to colors.onErrorContainer
     }
     Surface(color = container, contentColor = content, shape = RoundedCornerShape(8.dp), modifier = modifier) {
-        Text(label.text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        Text(
+            label.text,
+            style = MaterialTheme.typography.labelMedium,
+            // On tiles the chip must not grow the tile: one line, cut with "…" (full text on the detail screen).
+            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+            overflow = if (singleLine) TextOverflow.Ellipsis else TextOverflow.Clip,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
     }
 }
 

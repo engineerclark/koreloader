@@ -48,9 +48,13 @@ class PackageStatusTest {
         assertFalse(PackageStatusPolicy.dependencyNeedsInstall(same))
         assertTrue(PackageStatusPolicy.dependencyNeedsInstall(PackageStatus.NotInstalled))
         // A pending uninstall means installing KOReader must reinstall KFMon (replacing the uninstaller).
-        val pending = PackageStatusPolicy.status(InstalledState.Installed("1.4.6", receipt.copy(firmware = fw, removalPending = true)), emptyList(), fw)
+        val pendingState = InstalledState.Installed("1.4.6", receipt.copy(firmware = fw, removalPending = true))
+        val pending = PackageStatusPolicy.status(pendingState, emptyList(), fw, koboUpdatePending = true)
         assertTrue((pending as PackageStatus.Installed).removalPending)
         assertTrue(PackageStatusPolicy.dependencyNeedsInstall(pending))
+        // Uninstaller gone (processed or deleted) but KFMon files still there: the flag is stale.
+        val stale = PackageStatusPolicy.status(pendingState, emptyList(), fw, koboUpdatePending = false)
+        assertFalse((stale as PackageStatus.Installed).removalPending)
     }
 
     @Test
@@ -68,6 +72,12 @@ class PackageStatusTest {
         val all = RemovalPlan.forPackage(removal, entries, removeUserData = true)
         assertEquals(KoboPath.of(".adds/koreader"), all.deletions.first())
         assertTrue(all.preserved.isEmpty())
+    }
+
+    @Test
+    fun onlyKfmonCarriesANotice() {
+        assertTrue(Packages.KFMON.notices.single().contains("installed automatically with KOReader and Plato"))
+        assertTrue(Packages.KOREADER.notices.isEmpty() && Packages.PLATO.notices.isEmpty())
     }
 
     @Test

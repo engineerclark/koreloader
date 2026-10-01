@@ -8,7 +8,6 @@ import org.mmclark.koreloader.application.packages.FetchReleases
 import org.mmclark.koreloader.application.packages.GetPackageOverview
 import org.mmclark.koreloader.application.packages.InspectVolume
 import org.mmclark.koreloader.application.port.KoboVolumeFactory
-import org.mmclark.koreloader.application.storagecheck.RunStorageCheck
 import org.mmclark.koreloader.application.uninstall.UninstallPackage
 import org.mmclark.koreloader.infrastructure.archive.ZipFileArchiveReader
 import org.mmclark.koreloader.infrastructure.assets.ResourceBundledAssets
@@ -30,7 +29,6 @@ class AppContainer(context: Context) {
 
     val volumeFactory: KoboVolumeFactory = SafKoboVolumeFactory(context)
     val detectKoboDevice = DetectKoboDevice()
-    val runStorageCheck = RunStorageCheck()
 
     private val fetchReleases = FetchReleases(network.packageCatalog)
     private val inspectVolume = InspectVolume(receiptStore)

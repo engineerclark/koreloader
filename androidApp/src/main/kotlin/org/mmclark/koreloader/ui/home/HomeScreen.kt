@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,17 +28,14 @@ import org.mmclark.koreloader.ui.common.rememberKoboVolumePicker
 /** Main screen: choose the Kobo drive, show the device, then go to package management. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, onManagePackages: () -> Unit, onOpenStorageTest: () -> Unit) {
+fun HomeScreen(viewModel: HomeViewModel, onManagePackages: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val pickVolume = rememberKoboVolumePicker(viewModel::onVolumeSelected)
     RestorePersistedVolume(state.volume, viewModel::onVolumeSelected)
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("koreloader") },
-                actions = { TextButton(onClick = onOpenStorageTest) { Text("Storage test") } },
-            )
+            TopAppBar(title = { Text("koreloader") })
         },
     ) { padding ->
         Column(

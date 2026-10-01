@@ -86,6 +86,7 @@ fun PackageDetailScreen(viewModel: PackageDetailViewModel, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Header(state)
+            Notices(state.definition.notices)
             if (state.loading && state.overview == null) Busy("Checking the Kobo and available versions…")
 
             when (val overview = state.overview) {
@@ -137,18 +138,24 @@ private fun Header(state: PackageDetailUiState) {
 }
 
 @Composable
+private fun Notices(notices: List<String>) {
+    notices.forEach { notice ->
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+        ) {
+            Text("ⓘ  $notice", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
 private fun StatusCard(state: PackageDetailUiState) {
     val status = state.status ?: return
     val latest = state.releases.firstOrNull()
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             StatusChip(status.label())
-            Text(
-                "Installed: " + when (status) {
-                    PackageStatus.NotInstalled -> "no"
-                    is PackageStatus.Installed -> status.version ?: "yes (version unknown)"
-                },
-            )
             when (val releases = state.packageOverview?.releases) {
                 is ReleasesLookup.Found -> Text(
                     "Latest available: " + (latest?.let { "${it.version}${it.publishedOn?.let { d -> " ($d)" } ?: ""}" } ?: "none found"),

@@ -87,7 +87,7 @@ private fun PackageTile(pkg: PackageOverview, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(120.dp),
             )
             Text(pkg.definition.name, style = MaterialTheme.typography.titleMedium)
-            StatusChip(pkg.status.label())
+            StatusChip(pkg.status.label(), singleLine = true)
         }
     }
 }

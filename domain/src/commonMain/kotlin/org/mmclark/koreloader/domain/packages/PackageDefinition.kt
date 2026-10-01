@@ -26,6 +26,8 @@ data class PackageDefinition(
     /** Files that must exist after installing. */
     val requiredFiles: List<KoboPath>,
     val removal: Removal,
+    /** Special messages shown prominently with the package (e.g. when it needn't be installed by hand). */
+    val notices: List<String> = emptyList(),
 )
 
 /** Where a release archive's entries go: entries under [stripPrefix] are placed under [target]. */
@@ -66,8 +68,7 @@ object Packages {
         id = PackageId.KFMON,
         name = "KFMon",
         summary = "Launcher that starts KOReader and Plato from their icons in the Kobo library. " +
-            "Includes NickelMenu, which adds them to the Home screen menu. " +
-            "A Kobo firmware update disables KFMon: reinstall it afterwards.",
+            "Includes NickelMenu, which adds them to the Home screen menu.",
         marker = KoboPath.of(".adds/kfmon/config/kfmon.ini"),
         versionFile = null,
         layout = ArchiveLayout(target = KoboPath.ROOT),
@@ -83,6 +84,10 @@ object Packages {
                 ".adds/nm/kfmon", ".adds/nm/koreader", ".adds/nm/plato", ".adds/nm/doc",
                 "icons/plato.png", "koreader.png", "kfmon.png",
             ).map(KoboPath::of),
+        ),
+        notices = listOf(
+            "You don't need to install KFMon separately: it's installed automatically with KOReader and Plato. " +
+                "A Kobo firmware update disables KFMon, so reinstall it here after one.",
         ),
     )
 

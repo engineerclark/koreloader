@@ -118,7 +118,7 @@ class InstallPackage(
         val inventory = inspectVolume.inspect(volume)
         val dependencies = definition.dependencies.mapNotNull { dependencyId ->
             val state = inventory.installed[dependencyId] ?: InstalledState.NotInstalled
-            val status = PackageStatusPolicy.status(state, emptyList(), device.firmware)
+            val status = PackageStatusPolicy.status(state, emptyList(), device.firmware, inventory.koboUpdatePending)
             if (!PackageStatusPolicy.dependencyNeedsInstall(status)) return@mapNotNull null
             val latest = when (val lookup = fetchReleases(dependencyId)) {
                 is ReleasesLookup.Found -> lookup.releases.firstOrNull()

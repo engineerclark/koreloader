@@ -64,6 +64,7 @@ Requires JDK 21 and the Android SDK.
 ./gradlew :androidApp:installDebug    # install on a connected phone
 ./gradlew jvmTest                     # run unit tests (no device needed)
 scripts/fake-kobo.sh create           # simulate a Kobo on an emulator/phone (see CLAUDE.md)
+scripts/fake-kobo.sh eject            # simulate unplugging it (Nickel processes KoboRoot.tgz)
 scripts/emulator-ui.sh texts          # read the app's screen over adb
 ```
 

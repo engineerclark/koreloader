@@ -133,12 +133,12 @@ androidApp ──► presentation ──► application ──► domain
   It holds:
   - catalog: `PackageId`, `PackageRelease`, `Artifact`, `Checksum`, and the `PackageCatalog` repository interface;
   - device: `KoboDevice`, `FirmwareVersion`, `DeviceModel`, `DeviceCompatibilityPolicy`;
-  - packages: `Packages`/`PackageDefinition` (static knowledge per package: marker file, version file, `ArchiveLayout`, bundled launcher files, dependencies, required files, `Removal` rule), `InstalledStateResolver`, `PackageStatusPolicy` (update available, KFMon reinstall after firmware change, removal pending), `InstallReceipt`, `RemovalPlan`;
+  - packages: `Packages`/`PackageDefinition` (static knowledge per package: marker file, version file, `ArchiveLayout`, bundled launcher files, dependencies, required files, `Removal` rule, optional `notices` shown as info cards on the detail screen), `InstalledStateResolver`, `PackageStatusPolicy` (update available, KFMon reinstall after firmware change, removal pending), `InstallReceipt`, `RemovalPlan`;
   - install: `InstallPlan.compose` (multiple archives plus bundled files, safe paths, case-insensitive conflicts, KoboRoot deferred), `NickelConfig`;
   - volume: `KoboPath`.
 - **`:application`** depends only on `:domain` (and kotlinx.coroutines).
   It holds:
-  - use cases: `DetectKoboDevice`, `FetchReleases`, `InspectVolume`, `GetPackageOverview`, `DownloadPackage`, `InstallPackage` (resolves dependencies, records receipts), `UninstallPackage` (plus `preview`) and `RunStorageCheck`;
+  - use cases: `DetectKoboDevice`, `FetchReleases`, `InspectVolume`, `GetPackageOverview`, `DownloadPackage`, `InstallPackage` (resolves dependencies, records receipts), and `UninstallPackage` (plus `preview`);
   - ports: `KoboVolume`/`KoboVolumeFactory`, `PackageDownloader`, `ChecksumCalculator`, `ArchiveReader`, `BundledAssets` and `ReceiptStore`.
   Progress is reported as a `Flow`.
 - **`:infrastructure`** implements the ports.
@@ -152,7 +152,7 @@ androidApp ──► presentation ──► application ──► domain
   - Split into `:infrastructure:catalog`, `:infrastructure:storage-saf` and so on once it grows.
 - **`:presentation`** depends on `:application` (and `:domain` types for display). It holds ViewModels (androidx.lifecycle ViewModel is multiplatform), immutable UI state and `StateFlow`s. No Android or Compose imports.
 - **`:androidApp`** is the composition root. It wires infrastructure adapters into use cases with manual DI, and holds the Compose screens and the Android-only glue (`ACTION_OPEN_DOCUMENT_TREE`, persisted URI permissions).
-  Screens (Navigation Compose): `home` (pick the drive, device card, "Manage Kobo packages"), `packages` (grid of tiles with status chips), `package/{id}` (status, version dropdown, install/update/reinstall/older version, delete dialog), `storage` (the spike). `HomeViewModel` is activity-scoped and owns the selected `VolumeRef`; the other ViewModels are scoped to their destination.
+  Screens (Navigation Compose): `home` (pick the drive, device card, "Manage Kobo packages"), `packages` (grid of tiles with status chips), `package/{id}` (status, version dropdown, install/update/reinstall/older version, delete dialog). `HomeViewModel` is activity-scoped and owns the selected `VolumeRef`; the other ViewModels are scoped to their destination.
 
 Rules:
 - Never import `java.*`/`android.*` in any `commonMain`. Platform code lives in `androidMain` of `:infrastructure` (or in `:androidApp`).
@@ -164,7 +164,7 @@ Rules:
 
 ## Roadmap
 
-1. **Spike**, done: the "Storage test" screen (`RunStorageCheck`) exercises hidden folders, overwrite-with-truncate, append, rename-over-existing, recursive delete and small-file throughput in `.adds/koreloader-test`. It passed on the emulator (2026-09-30). **Still to do on a real Kobo.**
+1. **Spike**, done and then removed (2026-09-30). The "Storage test" screen (`RunStorageCheck`, in git history) exercised hidden folders, overwrite-with-truncate, append, rename-over-existing, recursive delete and small-file throughput, and passed on the emulator. The installs now cover the same operations. On a real Kobo, a first install doubles as the check.
 2. **Milestone 1**, done on the emulator with `scripts/fake-kobo.sh`: the main screen installs OCP-KOReader (with KFMon and NickelMenu) end to end. That covers the picker, the `.kobo/version` check, the manifest lookup, download, size + BLAKE2b + MD5 verification, the config append, extraction with KoboRoot last, the sanity checks and the eject screen. Verified on 2026-09-30: all 1,039 files byte-identical to the zip, no temp file left, and a re-install reuses the cached download, creates no duplicates and doesn't re-append the config. **Still to do on a real Kobo, including the reboot.**
 3. **Package manager**, done on the emulator (2026-09-30):
    - home, packages grid and detail screens;
@@ -205,10 +205,13 @@ scripts/fake-kobo.sh version 4.5.0           # too old, expect blocked
 scripts/fake-kobo.sh version 4.38.21908 999  # unknown model, expect a warning only
 scripts/fake-kobo.sh garbage                 # unparseable .kobo/version
 scripts/fake-kobo.sh show                    # list files + print version and Kobo eReader.conf
+scripts/fake-kobo.sh eject                   # simulate eject + unplug: Nickel processes .kobo/KoboRoot.tgz, deletes it, "reboots"
 scripts/fake-kobo.sh remove                  # delete /sdcard/FakeKobo
 ```
 
-After changing `.kobo/version`, tap **Re-check** in the app. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
+After changing `.kobo/version`, tap **Re-check** in the app.
+
+`eject` simulates what Nickel does with `.kobo/KoboRoot.tgz`. It identifies the tarball by its contents. For the KFMon installer and NickelMenu, the root-filesystem effects aren't visible over USB, so it only reports them. For the KFMon uninstaller, it applies the onboard deletions of `kfmon-uninstall.sh`, reading the file lists from the script inside the tarball. Then it deletes the tarball. Afterwards the app shows KFMon as "Not installed" on Refresh. The app keeps no file listings between loads, so no restart is needed. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
 
 The closest stand-in for a real Kobo is a FAT32 USB stick containing a `.kobo/version` file, attached to a phone over OTG.
 

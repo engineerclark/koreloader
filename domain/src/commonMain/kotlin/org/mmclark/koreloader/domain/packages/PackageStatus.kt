@@ -46,11 +46,15 @@ object PackageStatusPolicy {
     /**
      * Derives the status shown to the user. An update is only claimed when the installed
      * version is a known, older release; unknown versions (e.g. nightlies) never show one.
+     * A removal is only pending while its uninstaller still waits as `.kobo/KoboRoot.tgz`
+     * ([koboUpdatePending]); once Nickel has processed (or someone deleted) it, the receipt's
+     * flag is stale.
      */
     fun status(
         state: InstalledState,
         releases: List<PackageRelease>,
         currentFirmware: FirmwareVersion,
+        koboUpdatePending: Boolean = false,
     ): PackageStatus = when (state) {
         InstalledState.NotInstalled -> PackageStatus.NotInstalled
         is InstalledState.Installed -> {
@@ -63,7 +67,7 @@ object PackageStatusPolicy {
                 needsReinstall = state.receipt != null &&
                     state.receipt.packageId == PackageId.KFMON &&
                     state.receipt.firmware != currentFirmware,
-                removalPending = state.receipt?.removalPending == true,
+                removalPending = koboUpdatePending && state.receipt?.removalPending == true,
             )
         }
     }
