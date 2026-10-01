@@ -6,6 +6,24 @@ data class Credit(val project: String, val usedFor: String, val author: String, 
 /** A source of reference data or parsing logic (credited more briefly). */
 data class Reference(val label: String, val url: String)
 
+/** koreloader's author, shown on the home screen. */
+object AppAuthor {
+    const val NAME = "Michael Clark"
+    const val WEBSITE = "https://michael.mmclark.org"
+    const val WEBSITE_LABEL = "michael.mmclark.org"
+}
+
+/** koreloader's own license (see LICENSE). */
+object AppLicense {
+    const val SPDX_ID = "GPL-3.0-or-later"
+    const val NAME = "GNU General Public License v3.0 or later"
+    const val URL = "https://www.gnu.org/licenses/gpl-3.0.html"
+    const val COPYRIGHT = "Copyright (C) 2026 ${AppAuthor.NAME}"
+
+    /** Where the corresponding source code is published; set once the repository is public. */
+    val SOURCE_URL: String? = null
+}
+
 /** Who koreloader is built on. Keep in sync with THIRD_PARTY_ASSETS.md and CLAUDE.md's sources. */
 object Credits {
 

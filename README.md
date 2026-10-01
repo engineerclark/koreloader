@@ -101,4 +101,14 @@ All the hard work is done by the upstream projects:
 
 The packages are downloaded from their official distribution points when you install them. koreloader bundles only small upstream files (logos, KFMon launcher configs and the KFMon uninstaller), listed in [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
 
-koreloader is not affiliated with Rakuten Kobo or any of the projects above. License: GPL (exact version TBD).
+koreloader is not affiliated with Rakuten Kobo or any of the projects above.
+
+## License
+
+Copyright (C) 2026 Michael Clark ([michael.mmclark.org](https://michael.mmclark.org))
+
+koreloader is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (**GPL-3.0-or-later**).
+
+koreloader is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details. The full text is in [LICENSE](LICENSE).
+
+Third-party files bundled with koreloader keep their own licenses (GPL-3.0-or-later and AGPL-3.0); see [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md). The libraries koreloader uses (Kotlin, AndroidX, Ktor, Okio, kotlinx) are Apache-2.0.

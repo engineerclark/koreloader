@@ -25,6 +25,30 @@ kotlin {
     jvmToolchain(21)
 }
 
+/** Ships the repository's LICENSE (GPL-3.0) inside the APK, so the app can show it offline. */
+abstract class CopyLicenseTask : DefaultTask() {
+    @get:InputFile
+    abstract val license: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        license.get().asFile.copyTo(outputDir.get().file("LICENSE.txt").asFile, overwrite = true)
+    }
+}
+
+val copyLicenseAsset = tasks.register<CopyLicenseTask>("copyLicenseAsset") {
+    license.set(rootProject.layout.projectDirectory.file("LICENSE"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyLicenseAsset, CopyLicenseTask::outputDir)
+    }
+}
+
 dependencies {
     implementation(project(":presentation"))
     implementation(project(":infrastructure"))

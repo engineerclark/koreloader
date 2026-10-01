@@ -186,7 +186,11 @@ Rules:
 
 ## Licensing
 
-koreloader itself will be GPL (copyleft), so bundling GPL/AGPL artwork and scripts is fine. Every bundled third-party file is listed in `THIRD_PARTY_ASSETS.md` with its source. The packages themselves (KOReader, Plato, KFMon binaries) are **not** bundled: they are fetched from upstream at install time, so users always get upstream's builds. Licenses: KOReader AGPL-3.0, KFMon GPL-3.0+, Plato AGPL-3.0, NickelMenu MIT.
+koreloader is **GPL-3.0-or-later** (`LICENSE` is the canonical text from gnu.org, byte-identical to KFMon's). Copyright notice: "Copyright (C) 2026 Michael Clark". The author and website (https://michael.mmclark.org) are shown on the home screen (`AppAuthor` in `presentation/.../credits/Credits.kt`). Why version 3: the bundled KFMon files are GPL-3.0-or-later; the KOReader and Plato logos are AGPL-3.0, which GPLv3 §13 allows combining with; and the Apache-2.0 libraries are GPLv3-compatible but not GPLv2-compatible. Don't introduce GPLv2-only code or GPL-incompatible dependencies. Creative Commons licenses aren't used: CC advises against them for software. The project doesn't use SPDX headers in source files.
+- In the app, the home screen's credits card ends with the GPL's short notice for interactive programs ("comes with ABSOLUTELY NO WARRANTY…"), a link to the license, and **View full license**. The full license is the root `LICENSE`, copied into the APK as `assets/LICENSE.txt` by the `copyLicenseAsset` task in `androidApp/build.gradle.kts`. The values live in `AppLicense` (`presentation/.../credits/Credits.kt`).
+- **Before distributing an APK**, set `AppLicense.SOURCE_URL` to the public repository. GPLv3 §6 requires the corresponding source to be offered with object code; the notice then shows the link.
+
+Bundling GPL/AGPL artwork and scripts is therefore fine. Every bundled third-party file is listed in `THIRD_PARTY_ASSETS.md` with its source. The packages themselves (KOReader, Plato, KFMon binaries) are **not** bundled: they are fetched from upstream at install time, so users always get upstream's builds. Licenses: KOReader AGPL-3.0, KFMon GPL-3.0+, Plato AGPL-3.0, NickelMenu MIT.
 
 The home screen credits upstream projects with links (`presentation/.../credits/Credits.kt`, rendered by `CreditsCard`): KOReader (the KOReader contributors), Plato (baskerville), KFMon & One-Click Packages (NiLuJe) and NickelMenu (pgaskin), plus reference data from koboutils and calibre. When the app starts using another upstream project or file, add it there and to `THIRD_PARTY_ASSETS.md`.
 

@@ -1,6 +1,6 @@
 # Third-party assets
 
-koreloader is copyleft (GPL) and bundles the files below. None of the packages themselves (KOReader, Plato, KFMon) are bundled; those are downloaded from upstream at install time.
+koreloader is licensed under GPL-3.0-or-later (see `LICENSE`) and bundles the files below, which keep their own licenses. None of the packages themselves (KOReader, Plato, KFMon) are bundled; those are downloaded from upstream at install time.
 
 ## Files installed onto the Kobo
 
