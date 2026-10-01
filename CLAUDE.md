@@ -69,7 +69,10 @@ Re-verify before changing any of these. Sources are listed at the bottom.
 - KFMon has **no GitHub releases**. Only the current build exists: OCP-KFMon from the manifest, or `KFMon-v*.zip` on the MobileRead thread t=274231.
 - `OCP-KFMon` contains `kfmon.png`, `.adds/kfmon/{config/kfmon.ini,bin/kfmon-printlog.sh,log/}` and the KFMon+NickelMenu `KoboRoot.tgz`. It has **no** launcher configs (`one-click.py` strips them).
 - Launcher files per app, from the kfmon repo and **bundled** in koreloader (see `THIRD_PARTY_ASSETS.md`; byte-identical to OCP-KOReader's): `koreader.png` at the root plus `.adds/kfmon/config/koreader.ini`; `icons/plato.png` plus `.adds/kfmon/config/plato.ini`; NickelMenu shards `.adds/nm/{kfmon,koreader,plato}`. `nm/kfmon` is a `generator : main : kfmon` line that lists KFMon watches in the Home menu.
-- Uninstall: the official `KFMon-Uninstaller.zip` (MobileRead attachment) contains a `KoboRoot.tgz` that swaps in `kfmon-uninstall.sh` as `kfmon-update.sh`, plus an `on-animator.sh`. We bundle that `KoboRoot.tgz` and place it as `.kobo/KoboRoot.tgz`. On the next boot the Kobo deletes `/usr/local/kfmon`, KFMon's onboard configs and log, **the KOReader and Plato launcher files** (`koreader.png`, `icons/plato.png`, `.adds/kfmon/config/*.ini`, `.adds/nm/{kfmon,koreader,plato,doc}`), and any empty dirs. An emptied `.adds/nm` makes NickelMenu uninstall itself.
+- Uninstall: the official `KFMon-Uninstaller.zip` (MobileRead attachment) contains a `KoboRoot.tgz` that swaps in `kfmon-uninstall.sh` as `kfmon-update.sh`, plus an `on-animator.sh`. We bundle that `KoboRoot.tgz` and place it as `.kobo/KoboRoot.tgz`. On the next boot the Kobo deletes `/usr/local/kfmon`, KFMon's onboard configs and log, **the KOReader and Plato launcher files** (`koreader.png`, `icons/plato.png`, `.adds/kfmon/config/*.ini`, `.adds/nm/{kfmon,koreader,plato,doc}`), and any empty dirs. The script triggers via `/etc/udev/rules.d/99-kfmon.rules` (`KERNEL=="loop0", RUN+="/usr/local/kfmon/bin/kfmon-update.sh"`), which both tarballs ship. In the installer, `kfmon-update.sh` only deletes that rule.
+- **NickelMenu does not uninstall itself when `.adds/nm` is removed** (checked 2026-10-01). Its NickelHook uninstall triggers are `.adds/nm/uninstall` (the flag is deleted, then the library) and, only in builds with `NM_UNINSTALL_CONFIGDIR`, a missing `.adds/nm`. The shipped `libnm.so` (v0.6.0, inside OCP-KFMon's `KoboRoot.tgz`) reports `NM_UNINSTALL_CONFIGDIR: false`. That auto-uninstall was a custom pre-0.6.0 build (`one-click.py`), so the comment in `kfmon-uninstall.sh` is outdated. After a KFMon uninstall, NickelMenu stays installed and shows a config error item until `.adds/nm` exists again.
+- The KFMon+NickelMenu `KoboRoot.tgz` also contains **`./mnt/onboard/.adds/nm/doc`**. Nickel extracts the tarball over `/`, so that file appears on the user partition after the reboot.
+- **Several installs in one USB session work**: only one `KoboRoot.tgz` can exist, and only an install that writes one replaces it. Example: KOReader pulls in KFMon (writing the installer `KoboRoot.tgz`); then Plato, installed before ejecting, sees KFMon's files and receipt and leaves the pending installer alone. One eject applies everything. Any success screen reports a restart while a `KoboRoot.tgz` is pending, whoever wrote it.
 
 ### NickelMenu (`pgaskin/NickelMenu`)
 - Release asset `KoboRoot.tgz`. Configs live in `.adds/nm/`.
@@ -205,13 +208,18 @@ scripts/fake-kobo.sh version 4.5.0           # too old, expect blocked
 scripts/fake-kobo.sh version 4.38.21908 999  # unknown model, expect a warning only
 scripts/fake-kobo.sh garbage                 # unparseable .kobo/version
 scripts/fake-kobo.sh show                    # list files + print version and Kobo eReader.conf
-scripts/fake-kobo.sh eject                   # simulate eject + unplug: Nickel processes .kobo/KoboRoot.tgz, deletes it, "reboots"
+scripts/fake-kobo.sh eject                   # simulate eject + unplug + reboot (see below)
 scripts/fake-kobo.sh remove                  # delete /sdcard/FakeKobo
 ```
 
 After changing `.kobo/version`, tap **Re-check** in the app.
 
-`eject` simulates what Nickel does with `.kobo/KoboRoot.tgz`. It identifies the tarball by its contents. For the KFMon installer and NickelMenu, the root-filesystem effects aren't visible over USB, so it only reports them. For the KFMon uninstaller, it applies the onboard deletions of `kfmon-uninstall.sh`, reading the file lists from the script inside the tarball. Then it deletes the tarball. Afterwards the app shows KFMon as "Not installed" on Refresh. The app keeps no file listings between loads, so no restart is needed. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
+`eject` (`scripts/fake_kobo_eject.py`) reproduces what a real Kobo does after unplugging with a `.kobo/KoboRoot.tgz` present, using a **fake root filesystem** at `/sdcard/FakeKoboRootfs`. That partition isn't visible over USB, so the app never sees it, just as on a real Kobo.
+1. It extracts the tarball over `/`. `./mnt/onboard/…` entries go to the fake volume (e.g. NickelMenu's `.adds/nm/doc`); everything else goes to the fake root filesystem. Symlinks become placeholder files. Then it deletes the tarball.
+2. Boot: it runs the `RUN+=` scripts of udev rules found on the fake root filesystem (KFMon's `kfmon-update.sh`). The real script is used, with `/mnt/onboard` mapped to the fake volume, other absolute paths mapped into the fake root filesystem, and `killall`/`reboot`/`sync` defused. So the installer deletes its own udev rule, and the uninstaller removes `/usr/local/kfmon`, the onboard files and the empty folders.
+3. It applies NickelMenu's NickelHook checks (`.adds/nm/uninstall` flag; missing `.adds/nm` only if the shipped `libnm.so` was built with `NM_UNINSTALL_CONFIGDIR`).
+4. It only reports images Nickel would import as books; there is no Nickel database to update.
+Without a `KoboRoot.tgz` it does nothing, because there is no reboot. `show` lists the fake root filesystem too. Afterwards, Refresh in the app shows the result; the app keeps no file listings between loads. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
 
 The closest stand-in for a real Kobo is a FAT32 USB stick containing a `.kobo/version` file, attached to a phone over OTG.
 

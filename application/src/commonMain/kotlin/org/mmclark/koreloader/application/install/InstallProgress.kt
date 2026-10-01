@@ -34,8 +34,9 @@ sealed interface InstallProgress {
     data object VerifyingInstall : InstallProgress
 
     /**
-     * [installed] lists every release written, dependencies first. When [koboUpdateRequired],
-     * the Kobo must be ejected and unplugged so Nickel processes `KoboRoot.tgz` and reboots.
+     * [installed] lists every release written, dependencies first. When [koboUpdateRequired]
+     * (this install, or an earlier one in the same USB session, left a `KoboRoot.tgz`), the
+     * Kobo must be ejected and unplugged so Nickel processes it and reboots.
      */
     data class Succeeded(
         val device: KoboDevice,

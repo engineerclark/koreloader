@@ -423,10 +423,13 @@ private fun DeleteDialog(
                     is RemovalPreview.OnDevice -> {
                         Text(
                             "Your Kobo removes KFMon itself after you eject and unplug it (it restarts). " +
-                                "This also removes the KOReader and Plato launchers (their library icons and menu entries), " +
-                                "and NickelMenu if nothing else uses it.",
+                                "This also removes the KOReader and Plato launchers: their library icons and Home menu entries.",
                         )
                         Text("KOReader and Plato stay installed, but can't be started until KFMon is reinstalled.")
+                        Text(
+                            "NickelMenu stays installed. With its settings folder gone, its menu shows an error entry until KFMon is reinstalled.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                         if (preview.removedOnDevice.isNotEmpty()) {
                             Text("Files the Kobo will delete:", fontWeight = FontWeight.Bold)
                             preview.removedOnDevice.forEach { Text("•  $it", style = MaterialTheme.typography.bodySmall) }

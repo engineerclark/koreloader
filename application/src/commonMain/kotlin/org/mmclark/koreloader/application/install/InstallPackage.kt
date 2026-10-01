@@ -203,7 +203,10 @@ class InstallPackage(
                 return InstallProgress.Failed(InstallError.SanityCheckFailed(missing), leftovers(volume))
             }
             recordReceipts(volume, components, device)
-            return InstallProgress.Succeeded(device, components.map { it.release }, plan.triggersKoboUpdate)
+            // An update left pending by an earlier install (e.g. KFMon pulled in by KOReader, then
+            // Plato installed in the same session) also makes the Kobo restart on unplug.
+            val koboUpdateRequired = plan.triggersKoboUpdate || volume.entryType(InstallPlan.KOBO_ROOT_TGZ) == EntryType.FILE
+            return InstallProgress.Succeeded(device, components.map { it.release }, koboUpdateRequired)
         } catch (e: CancellationException) {
             withContext(NonCancellable) { removeTempFile(volume) }
             throw e

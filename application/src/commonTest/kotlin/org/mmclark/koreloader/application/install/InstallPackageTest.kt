@@ -88,16 +88,41 @@ class InstallPackageTest {
     }
 
     @Test
-    fun koreaderWithWorkingKfmonSkipsItAndNeedsNoReboot() = runTest {
+    fun koreaderWithWorkingKfmonSkipsItAndLeavesAPendingUpdateAlone() = runTest {
         val volume = koboVolumeWithKfmon(receipts).apply { putFile(".kobo/KoboRoot.tgz", "PENDING-UNINSTALLER") }
         val downloader = FakeDownloader()
         val success = assertIs<InstallProgress.Succeeded>(installer(downloader = downloader).run(volume).last())
         assertEquals(listOf(koreaderRelease), success.installed)
-        assertFalse(success.koboUpdateRequired)
+        assertTrue(success.koboUpdateRequired) // the pending KoboRoot.tgz still runs on unplug
         assertEquals(listOf("koreader-v2026.07.1.zip"), downloader.fetched)
         // A pending KoboRoot.tgz that this install doesn't replace is left alone.
         assertEquals("PENDING-UNINSTALLER", volume.fileText(".kobo/KoboRoot.tgz"))
         assertEquals("1.4.5", receipts.receipts.single { it.packageId == PackageId.KFMON }.version)
+    }
+
+    @Test
+    fun secondInstallBeforeEjectKeepsThePendingKfmonInstall() = runTest {
+        val plato = release(PackageId.PLATO, "0.9.45")
+        val platoZip = listOf("plato.sh" to "#!/bin/sh", "css/" to null, "css/epub.css" to "css")
+        val volume = koboVolume()
+        val downloader = FakeDownloader()
+        val archives = archivesFor(
+            kfmonRelease, koreaderRelease, plato,
+            entries = mapOf(PackageId.KFMON to ocpKfmonEntries, PackageId.KOREADER to koreaderZipEntries, PackageId.PLATO to platoZip),
+        )
+        assertIs<InstallProgress.Succeeded>(installer(downloader = downloader, archives = archives).run(volume).last())
+        val writesAfterFirst = volume.log.size
+
+        val second = assertIs<InstallProgress.Succeeded>(installer(downloader = downloader, archives = archives).run(volume, plato).last())
+        assertEquals(listOf(plato), second.installed) // KFMon not reinstalled
+        assertTrue(second.koboUpdateRequired) // the first install's KoboRoot.tgz still makes the Kobo restart
+        assertEquals("KFMON-KOBOROOT", volume.fileText(".kobo/KoboRoot.tgz"))
+        assertTrue(volume.log.drop(writesAfterFirst).none { "KoboRoot" in it }, "${volume.log.drop(writesAfterFirst)}")
+        assertEquals("#!/bin/sh", volume.fileText(".adds/koreader/koreader.sh"))
+        assertEquals("#!/bin/sh", volume.fileText(".adds/plato/plato.sh"))
+        assertEquals("bundled:nm/plato", volume.fileText(".adds/nm/plato"))
+        assertEquals(setOf(PackageId.KFMON, PackageId.KOREADER, PackageId.PLATO), receipts.receipts.map { it.packageId }.toSet())
+        assertEquals(listOf("kfmon-1.4.6.zip", "koreader-v2026.07.1.zip", "plato-0.9.45.zip"), downloader.fetched)
     }
 
     @Test
@@ -208,5 +233,19 @@ class InstallPackageTest {
         assertIs<InstallError.WriteFailed>(assertIs<InstallProgress.Failed>(installer().run(volume).last()).error)
         assertNull(volume.fileText(".kobo/KoboRoot.tgz"))
         assertNull(volume.fileText(".kobo/KoboRoot.tgz.koreloader-tmp"))
+    }
+}
+
+class InstallWithoutPendingUpdateTest {
+    @Test
+    fun noKoboRootMeansNoRestart() = runTest {
+        val receipts = InMemoryReceiptStore()
+        val volume = koboVolumeWithKfmon(receipts)
+        val installer = InstallPackage(
+            DetectKoboDevice(), InspectVolume(receipts), FetchReleases(FakeCatalog()),
+            DownloadPackage(FakeDownloader(), FakeChecksums()), archivesFor(koreaderRelease), FakeBundledAssets(), receipts,
+        )
+        val success = assertIs<InstallProgress.Succeeded>(installer(volume, koreaderRelease).toList().last())
+        assertFalse(success.koboUpdateRequired)
     }
 }
