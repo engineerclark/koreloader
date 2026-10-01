@@ -1,10 +1,12 @@
 package org.mmclark.koreloader.ui.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -18,8 +20,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.mmclark.koreloader.R
 import org.mmclark.koreloader.presentation.home.HomeViewModel
 import org.mmclark.koreloader.ui.common.DeviceCard
 import org.mmclark.koreloader.ui.common.RestorePersistedVolume
@@ -35,7 +39,15 @@ fun HomeScreen(viewModel: HomeViewModel, onManagePackages: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("koreloader") })
+            TopAppBar(
+                title = {
+                    Image(
+                        painter = painterResource(R.drawable.lockup),
+                        contentDescription = "koreloader",
+                        modifier = Modifier.height(32.dp),
+                    )
+                },
+            )
         },
     ) { padding ->
         Column(

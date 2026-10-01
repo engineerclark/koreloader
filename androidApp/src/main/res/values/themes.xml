@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch screen: the koreloader mark above the wordmark (drawable/splash_logo). -->
+    <style name="Theme.Koreloader.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Koreloader</item>
+    </style>
+
+    <style name="Theme.Koreloader" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

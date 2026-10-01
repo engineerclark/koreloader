@@ -203,6 +203,13 @@ The home screen credits upstream projects with links (`presentation/.../credits/
 - `KORELOADER_OCP_ZIP=/path/to/OCP-KOReader-vX.zip ./gradlew :infrastructure:jvmTest --rerun-tasks` also checks that a real one-click package plans cleanly. This test is opt-in; never commit the zip, because of licensing.
 - `./gradlew :androidApp:installDebug` installs on a connected phone.
 
+## Branding
+
+`branding/` holds the koreloader logo SVGs: the mark, the wordmark, the lockup (mark + wordmark) and the app icon. The brand colours are navy `#12263A` and blues `#3D7BFF`/`#1F4FCC`; on dark backgrounds they become light `#F5F6F8` and `#6B9BFF`/`#3D6FE0`, as in the app-icon SVG. `branding/generate_drawables.py` converts the SVGs into Android vector drawables. Don't hand-edit the generated files; rerun the script after changing an SVG.
+- `ic_launcher_foreground`/`ic_launcher_monochrome`: the adaptive launcher icon (`mipmap-anydpi-v26/ic_launcher*.xml`, background `@color/ic_launcher_background`). The mark is about 53dp tall, inside the 66dp safe zone.
+- `splash_logo` (plus a `drawable-night` variant): the launch screen, with the mark above the wordmark. It lives inside the splash icon rather than Android's branding-image slot, which would pin the wordmark to the bottom of the screen. Android masks the icon to a 192dp circle, and the script asserts the lockup fits inside it. Theme: `Theme.Koreloader.Splash` (androidx core-splashscreen, `installSplashScreen()` in `MainActivity`).
+- `lockup` (plus a night variant): shown in the home screen's top bar, 32dp tall.
+
 ## Testing without a Kobo
 
 `scripts/fake-kobo.sh` creates a fake Kobo volume at `/sdcard/FakeKobo` on a connected emulator or phone, using adb. In the app's picker, choose internal storage, then **FakeKobo**. This goes through the same SAF provider (`ExternalStorageProvider`) as a USB drive, but internal storage is ext4/f2fs: case-sensitive and much faster than a Kobo, so timings are not representative.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- koreloader brand navy (branding/*.svg). -->
+    <color name="ic_launcher_background">#12263A</color>
+    <color name="splash_background">#F5F6F8</color>
+</resources>

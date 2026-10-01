@@ -80,6 +80,7 @@ application/     Use cases (detect device, download & verify, install) and the p
 infrastructure/  Adapters: package manifest client, hashing, zip reading, Android storage (SAF)
 presentation/    ViewModels and UI state
 androidApp/      Jetpack Compose UI and app wiring
+branding/        Logo SVGs and the script that turns them into Android drawables
 ```
 
 `domain`, `application`, `infrastructure` and `presentation` are Kotlin Multiplatform modules, so they can be reused by an iOS app later.

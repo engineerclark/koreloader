@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -24,6 +25,7 @@ import org.mmclark.koreloader.ui.theme.KoreloaderTheme
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen() // koreloader mark + wordmark (Theme.Koreloader.Splash)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as KoreloaderApplication).container
