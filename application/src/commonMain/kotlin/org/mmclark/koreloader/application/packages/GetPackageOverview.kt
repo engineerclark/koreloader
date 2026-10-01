@@ -1,7 +1,6 @@
 package org.mmclark.koreloader.application.packages
 
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.mmclark.koreloader.application.device.DetectKoboDevice
 import org.mmclark.koreloader.application.device.DeviceDetection
@@ -53,26 +52,41 @@ class GetPackageOverview(
             is InventoryResult.Ready -> result.inventory
             is InventoryResult.Unavailable -> return@coroutineScope OverviewResult.VolumeUnavailable(result.message)
         }
-        releases.values.awaitAll()
+        val lookups = Packages.all.associate { it.id to releases.getValue(it.id).await() }
+        assemble(device, detection.compatibility, inventory.koboUpdatePending, inventory.installed, lookups)
+    }
 
-        val statuses = Packages.all.associate { definition ->
-            val state = inventory.installed[definition.id] ?: InstalledState.NotInstalled
-            val lookup = releases.getValue(definition.id).await()
-            val list = (lookup as? ReleasesLookup.Found)?.releases.orEmpty()
-            definition.id to Triple(lookup, state, PackageStatusPolicy.status(state, list, device.firmware, inventory.koboUpdatePending))
+    companion object {
+        /**
+         * Derives statuses and dependencies from raw facts. Shared by fresh loads and by
+         * overviews restored from an [OverviewSnapshot], so both follow the same domain rules.
+         */
+        fun assemble(
+            device: KoboDevice,
+            compatibility: DeviceCompatibility,
+            koboUpdatePending: Boolean,
+            installed: Map<PackageId, InstalledState>,
+            releases: Map<PackageId, ReleasesLookup>,
+        ): OverviewResult.Ready {
+            val statuses = Packages.all.associate { definition ->
+                val state = installed[definition.id] ?: InstalledState.NotInstalled
+                val lookup = releases[definition.id] ?: ReleasesLookup.Unavailable("not loaded")
+                val list = (lookup as? ReleasesLookup.Found)?.releases.orEmpty()
+                definition.id to Triple(lookup, state, PackageStatusPolicy.status(state, list, device.firmware, koboUpdatePending))
+            }
+            val overviews = Packages.all.map { definition ->
+                val (lookup, state, status) = statuses.getValue(definition.id)
+                PackageOverview(
+                    definition = definition,
+                    releases = lookup,
+                    state = state,
+                    status = status,
+                    dependenciesToInstall = definition.dependencies
+                        .filter { PackageStatusPolicy.dependencyNeedsInstall(statuses.getValue(it).third) }
+                        .map(Packages::get),
+                )
+            }
+            return OverviewResult.Ready(device, compatibility, koboUpdatePending, overviews)
         }
-        val overviews = Packages.all.map { definition ->
-            val (lookup, state, status) = statuses.getValue(definition.id)
-            PackageOverview(
-                definition = definition,
-                releases = lookup,
-                state = state,
-                status = status,
-                dependenciesToInstall = definition.dependencies
-                    .filter { PackageStatusPolicy.dependencyNeedsInstall(statuses.getValue(it).third) }
-                    .map(Packages::get),
-            )
-        }
-        OverviewResult.Ready(device, detection.compatibility, inventory.koboUpdatePending, overviews)
     }
 }

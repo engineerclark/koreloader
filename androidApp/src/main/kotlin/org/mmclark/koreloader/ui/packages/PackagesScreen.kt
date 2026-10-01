@@ -2,6 +2,7 @@ package org.mmclark.koreloader.ui.packages
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +49,11 @@ fun PackagesScreen(viewModel: PackagesViewModel, onOpenPackage: (PackageId) -> U
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            // Background refresh indicator. Its slot is always reserved, so the tiles never shift
+            // (and taps never land on the wrong tile) when it appears or disappears.
+            Box(Modifier.fillMaxWidth().height(4.dp)) {
+                if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
             when (val overview = state.overview) {
                 null -> Unit
                 is OverviewResult.DeviceProblem, is OverviewResult.VolumeUnavailable -> Text(
@@ -60,6 +66,9 @@ fun PackagesScreen(viewModel: PackagesViewModel, onOpenPackage: (PackageId) -> U
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    state.refreshProblem?.let { problem ->
+                        item(span = { GridItemSpan(maxLineSpan) }) { StaleNote(problem, Modifier.padding(top = 12.dp)) }
+                    }
                     if (overview.koboUpdatePending) {
                         item(span = { GridItemSpan(maxLineSpan) }) { PendingUpdateNote(Modifier.padding(top = 12.dp)) }
                     }
@@ -89,6 +98,21 @@ private fun PackageTile(pkg: PackageOverview, onClick: () -> Unit) {
             Text(pkg.definition.name, style = MaterialTheme.typography.titleMedium)
             StatusChip(pkg.status.label(), singleLine = true)
         }
+    }
+}
+
+/** Shown when the Kobo couldn't be read and the screen shows its last known state. */
+@Composable
+fun StaleNote(problem: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Text(
+            "$problem Showing what koreloader found last time; reconnect the Kobo and tap Refresh.",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(12.dp),
+        )
     }
 }
 

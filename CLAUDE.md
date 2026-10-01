@@ -203,6 +203,17 @@ The home screen credits upstream projects with links (`presentation/.../credits/
 - `KORELOADER_OCP_ZIP=/path/to/OCP-KOReader-vX.zip ./gradlew :infrastructure:jvmTest --rerun-tasks` also checks that a real one-click package plans cleanly. This test is opt-in; never commit the zip, because of licensing.
 - `./gradlew :androidApp:installDebug` installs on a connected phone.
 
+## Package overview cache (stale-while-revalidate)
+
+The package grid and detail screens never wait on the Kobo or the network before drawing.
+- `ObservePackageOverview` (application) emits the cached overview for the volume first, then loads the current one with `GetPackageOverview`. If anything changed, the screen updates in place, and the result is saved for next time.
+- The cache stores **raw facts** (`OverviewSnapshot`: device, installed states, pending-update flag, release lists), never statuses. Restored overviews go through the same `GetPackageOverview.assemble` domain rules, so a rule change applies to cached data too.
+- Implementation: `FileOverviewSnapshotStore` keeps it in memory and in `cacheDir/overview-cache.json` (JSON via `OverviewSnapshotCodec`; written atomically; anything that doesn't parse is dropped). It's keyed by `VolumeRef.value`. Losing the file only costs one slow load.
+- A refresh that can't fetch release lists (offline) keeps the cached lists. If the Kobo can't be read, the cached overview stays visible with `refreshProblem` ("The Kobo isn't connected…").
+- Install and delete stay disabled until a refresh has confirmed the state (`fromCache == false`), so they never act on cached data.
+- The grid shows a `LinearProgressIndicator` above the tiles while a refresh runs. Its 4dp slot is always reserved, so the tiles never shift when it appears or disappears; the tiles stay tappable throughout. Within the catalog's 15-minute in-memory cache, a refresh only rescans the Kobo and usually finishes too fast for the bar to be visible. After a restart, or once that cache expires, it shows for the 1–3 s the network takes.
+- `PackagesViewModel` starts loading in `init`, not on resume: resume only happens after the navigation animation, which made the screen blank for a moment. It refreshes again on later resumes (e.g. back from a detail screen).
+
 ## Branding
 
 `branding/` holds the koreloader logo SVGs: the mark, the wordmark, the lockup (mark + wordmark) and the app icon. The brand colours are navy `#12263A` and blues `#3D7BFF`/`#1F4FCC`; on dark backgrounds they become light `#F5F6F8` and `#6B9BFF`/`#3D6FE0`, as in the app-icon SVG. `branding/generate_drawables.py` converts the SVGs into Android vector drawables. Don't hand-edit the generated files; rerun the script after changing an SVG.
@@ -235,6 +246,8 @@ After changing `.kobo/version`, tap **Re-check** in the app.
 Without a `KoboRoot.tgz` it does nothing, because there is no reboot. `show` lists the fake root filesystem too. Afterwards, Refresh in the app shows the result; the app keeps no file listings between loads. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
 
 The closest stand-in for a real Kobo is a FAT32 USB stick containing a `.kobo/version` file, attached to a phone over OTG.
+
+Don't simulate an unplugged Kobo by moving or deleting `/sdcard/FakeKobo` with adb: Android then **revokes the app's persisted SAF permission** for that tree, and you have to pick the folder again in the app. A real USB unplug should keep the permission (to verify on a device). The app turns a revoked permission into "koreloader no longer has access to this drive. Choose the Kobo drive again".
 
 `scripts/emulator-ui.sh` drives the app over adb for quick manual checks: `texts` lists the on-screen text, `tap "<regex>"` taps the first element whose text matches, `shot <file.png>` takes a screenshot. When tapping buttons, match their full label (e.g. `"^Install "`, not a word that also appears in status text). If a tap reports "not found", stop: nothing happened.
 

@@ -15,6 +15,9 @@ import org.mmclark.koreloader.application.install.InstallProgress
 import org.mmclark.koreloader.application.packages.FetchReleases
 import org.mmclark.koreloader.application.packages.GetPackageOverview
 import org.mmclark.koreloader.application.packages.InspectVolume
+import org.mmclark.koreloader.application.packages.ObservePackageOverview
+import org.mmclark.koreloader.application.port.OverviewSnapshot
+import org.mmclark.koreloader.application.port.OverviewSnapshotStore
 import org.mmclark.koreloader.application.port.Archive
 import org.mmclark.koreloader.application.port.ArchiveReader
 import org.mmclark.koreloader.application.port.BundledAssets
@@ -96,7 +99,7 @@ class PackageDetailViewModelTest {
         val inspect = InspectVolume(receipts)
         return PackageDetailViewModel(
             PackageId.KOREADER, VolumeRef("content://kobo"), { volume },
-            GetPackageOverview(detect, inspect, fetch),
+            ObservePackageOverview(GetPackageOverview(detect, inspect, fetch), NoCache),
             InstallPackage(detect, inspect, fetch, DownloadPackage(downloader) { _, _ -> emptyMap() }, archives, assets, receipts),
             UninstallPackage(detect, assets, receipts),
         )
@@ -141,6 +144,11 @@ class PackageDetailViewModelTest {
         assertTrue(vm.state.value.operation!!.isFinished)
         assertEquals("settings", volume.files[KoboPath.of(".adds/koreader/settings.reader.lua")])
         assertNull(volume.files[KoboPath.of(".adds/koreader/koreader.sh")])
+    }
+
+    private object NoCache : OverviewSnapshotStore {
+        override suspend fun load(key: String): OverviewSnapshot? = null
+        override suspend fun save(key: String, snapshot: OverviewSnapshot) {}
     }
 
     /** Flat map volume: directories are implied by file paths. */

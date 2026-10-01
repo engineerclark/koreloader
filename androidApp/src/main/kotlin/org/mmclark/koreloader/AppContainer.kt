@@ -7,10 +7,12 @@ import org.mmclark.koreloader.application.install.InstallPackage
 import org.mmclark.koreloader.application.packages.FetchReleases
 import org.mmclark.koreloader.application.packages.GetPackageOverview
 import org.mmclark.koreloader.application.packages.InspectVolume
+import org.mmclark.koreloader.application.packages.ObservePackageOverview
 import org.mmclark.koreloader.application.port.KoboVolumeFactory
 import org.mmclark.koreloader.application.uninstall.UninstallPackage
 import org.mmclark.koreloader.infrastructure.archive.ZipFileArchiveReader
 import org.mmclark.koreloader.infrastructure.assets.ResourceBundledAssets
+import org.mmclark.koreloader.infrastructure.cache.FileOverviewSnapshotStore
 import org.mmclark.koreloader.infrastructure.hash.FileChecksumCalculator
 import org.mmclark.koreloader.infrastructure.http.NetworkAdapters
 import org.mmclark.koreloader.infrastructure.receipts.VolumeReceiptStore
@@ -33,7 +35,13 @@ class AppContainer(context: Context) {
     private val fetchReleases = FetchReleases(network.packageCatalog)
     private val inspectVolume = InspectVolume(receiptStore)
 
-    val getPackageOverview = GetPackageOverview(detectKoboDevice, inspectVolume, fetchReleases)
+    private val getPackageOverview = GetPackageOverview(detectKoboDevice, inspectVolume, fetchReleases)
+
+    /** Package screens show the last known overview at once, then refresh it in the background. */
+    val observePackageOverview = ObservePackageOverview(
+        getPackageOverview,
+        FileOverviewSnapshotStore(File(context.cacheDir, "overview-cache.json")),
+    )
     val installPackage = InstallPackage(
         detectKoboDevice = detectKoboDevice,
         inspectVolume = inspectVolume,

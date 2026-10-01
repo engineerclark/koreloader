@@ -7,6 +7,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -45,9 +48,11 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("packages") {
                         val volume = homeState.volume ?: return@composable LaunchedEffect(Unit) { navController.popBackStack("home", false) }
-                        val viewModel = viewModel { PackagesViewModel(volume, container.volumeFactory, container.getPackageOverview) }
+                        val viewModel = viewModel { PackagesViewModel(volume, container.volumeFactory, container.observePackageOverview) }
+                        // The ViewModel loads on creation; refresh again when coming back (e.g. after an install).
+                        var resumedBefore by rememberSaveable { mutableStateOf(false) }
                         LifecycleResumeEffect(viewModel) {
-                            viewModel.refresh()
+                            if (resumedBefore) viewModel.refresh() else resumedBefore = true
                             onPauseOrDispose {}
                         }
                         PackagesScreen(
@@ -62,7 +67,7 @@ class MainActivity : ComponentActivity() {
                         val viewModel = viewModel {
                             PackageDetailViewModel(
                                 id, volume, container.volumeFactory,
-                                container.getPackageOverview, container.installPackage, container.uninstallPackage,
+                                container.observePackageOverview, container.installPackage, container.uninstallPackage,
                             )
                         }
                         PackageDetailScreen(viewModel, onBack = { navController.popBackStack() })

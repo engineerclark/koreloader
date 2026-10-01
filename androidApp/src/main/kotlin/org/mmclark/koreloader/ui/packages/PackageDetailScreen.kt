@@ -93,6 +93,7 @@ fun PackageDetailScreen(viewModel: PackageDetailViewModel, onBack: () -> Unit) {
                 is OverviewResult.DeviceProblem, is OverviewResult.VolumeUnavailable ->
                     Text("Can't read the Kobo. Is it still connected?", color = MaterialTheme.colorScheme.error)
                 is OverviewResult.Ready -> {
+                    state.refreshProblem?.let { StaleNote(it) }
                     if (overview.koboUpdatePending && state.operation == null) PendingUpdateNote()
                     val compatibility = overview.compatibility
                     if (compatibility is DeviceCompatibility.Unsupported) {

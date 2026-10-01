@@ -107,6 +107,9 @@ class SafKoboVolume(
                 throw e
             } catch (e: KoboVolumeException) {
                 throw e
+            } catch (e: SecurityException) {
+                // The persisted tree permission is gone (revoked in Settings, or the folder was moved/deleted).
+                throw KoboVolumeException("koreloader no longer has access to this drive. Choose the Kobo drive again", e)
             } catch (e: Exception) {
                 // SecurityException (permission revoked), IOException / IllegalStateException
                 // (volume unplugged), FileNotFoundException, ...
