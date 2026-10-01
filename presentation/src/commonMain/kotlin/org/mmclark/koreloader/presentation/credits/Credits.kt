@@ -1,7 +1,9 @@
 package org.mmclark.koreloader.presentation.credits
 
-/** An upstream project koreloader is directly based on. */
-data class Credit(val project: String, val usedFor: String, val author: String, val url: String)
+import org.mmclark.koreloader.domain.catalog.PackageId
+
+/** An upstream project koreloader is directly based on. [license] is the project's SPDX identifier. */
+data class Credit(val project: String, val usedFor: String, val author: String, val url: String, val license: String)
 
 /** A source of reference data or parsing logic (credited more briefly). */
 data class Reference(val label: String, val url: String)
@@ -27,32 +29,54 @@ object AppLicense {
 /** Who koreloader is built on. Keep in sync with THIRD_PARTY_ASSETS.md and CLAUDE.md's sources. */
 object Credits {
 
-    val projects: List<Credit> = listOf(
-        Credit(
-            project = "KOReader",
-            usedFor = "the KOReader app and logo",
-            author = "the KOReader contributors",
-            url = "https://github.com/koreader/koreader",
-        ),
-        Credit(
-            project = "Plato",
-            usedFor = "the Plato app and logo",
-            author = "baskerville",
-            url = "https://github.com/baskerville/plato",
-        ),
-        Credit(
-            project = "KFMon & One-Click Packages",
-            usedFor = "the launcher, packages, install and uninstall scripts, and launcher configs and icons",
-            author = "NiLuJe",
-            url = "https://github.com/NiLuJe/kfmon",
-        ),
-        Credit(
-            project = "NickelMenu",
-            usedFor = "the Home screen menu entries (installed with KFMon)",
-            author = "pgaskin",
-            url = "https://github.com/pgaskin/NickelMenu",
-        ),
+    private val KOREADER = Credit(
+        project = "KOReader",
+        usedFor = "the KOReader app and logo",
+        author = "the KOReader contributors",
+        url = "https://github.com/koreader/koreader",
+        license = "AGPL-3.0",
     )
+    private val PLATO = Credit(
+        project = "Plato",
+        usedFor = "the Plato app and logo",
+        author = "baskerville",
+        url = "https://github.com/baskerville/plato",
+        license = "AGPL-3.0",
+    )
+    private val KFMON = Credit(
+        project = "KFMon & One-Click Packages",
+        usedFor = "the launcher, packages, install and uninstall scripts, and launcher configs and icons",
+        author = "NiLuJe",
+        url = "https://github.com/NiLuJe/kfmon",
+        license = "GPL-3.0-or-later",
+    )
+    private val NICKELMENU = Credit(
+        project = "NickelMenu",
+        usedFor = "the Home screen menu entries (installed with KFMon)",
+        author = "pgaskin",
+        url = "https://github.com/pgaskin/NickelMenu",
+        license = "MIT",
+    )
+
+    /** Everything koreloader builds on (home screen). */
+    val projects: List<Credit> = listOf(KOREADER, PLATO, KFMON, NICKELMENU)
+
+    /** Who made what koreloader installs for one package (package detail screen). */
+    fun forPackage(id: PackageId): List<Credit> = when (id) {
+        PackageId.KOREADER -> listOf(
+            KOREADER.copy(usedFor = "KOReader itself"),
+            KFMON.copy(project = "KFMon", usedFor = "the library icon and launcher configs that start KOReader"),
+        )
+        PackageId.PLATO -> listOf(
+            PLATO.copy(usedFor = "Plato itself"),
+            KFMON.copy(project = "KFMon", usedFor = "the library icon and launcher configs that start Plato"),
+        )
+        PackageId.KFMON -> listOf(
+            KFMON.copy(usedFor = "KFMon and the one-click package koreloader installs it from, plus its uninstaller"),
+            NICKELMENU.copy(usedFor = "the Home screen menu, installed together with KFMon"),
+        )
+        else -> emptyList()
+    }
 
     val references: List<Reference> = listOf(
         Reference("koboutils (Kobo model list)", "https://github.com/pgaskin/koboutils"),

@@ -107,6 +107,7 @@ fun PackageDetailScreen(viewModel: PackageDetailViewModel, onBack: () -> Unit) {
                 }
                 null -> Unit
             }
+            PackageCredits(definition.id, Modifier.padding(top = 8.dp))
             Text("", modifier = Modifier.padding(bottom = 16.dp))
         }
     }
