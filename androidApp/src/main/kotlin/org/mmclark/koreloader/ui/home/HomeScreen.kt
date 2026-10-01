@@ -68,6 +68,7 @@ fun HomeScreen(viewModel: HomeViewModel, onManagePackages: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Manage Kobo packages") }
             }
+            CreditsCard(Modifier.padding(top = 16.dp))
         }
     }
 }

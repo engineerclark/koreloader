@@ -188,6 +188,8 @@ Rules:
 
 koreloader itself will be GPL (copyleft), so bundling GPL/AGPL artwork and scripts is fine. Every bundled third-party file is listed in `THIRD_PARTY_ASSETS.md` with its source. The packages themselves (KOReader, Plato, KFMon binaries) are **not** bundled: they are fetched from upstream at install time, so users always get upstream's builds. Licenses: KOReader AGPL-3.0, KFMon GPL-3.0+, Plato AGPL-3.0, NickelMenu MIT.
 
+The home screen credits upstream projects with links (`presentation/.../credits/Credits.kt`, rendered by `CreditsCard`): KOReader (the KOReader contributors), Plato (baskerville), KFMon & One-Click Packages (NiLuJe) and NickelMenu (pgaskin), plus reference data from koboutils and calibre. When the app starts using another upstream project or file, add it there and to `THIRD_PARTY_ASSETS.md`.
+
 ## Build
 
 - JDK 21, Gradle wrapper (Kotlin DSL, version catalog in `gradle/libs.versions.toml`).
