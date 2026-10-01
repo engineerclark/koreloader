@@ -4,7 +4,7 @@ Install [KOReader](https://github.com/koreader/koreader), [Plato](https://github
 
 Plug the Kobo into your phone with a USB-C OTG cable, tap **Connect** on the Kobo, choose a package in the app, and tap **Install**.
 
-> **Status:** early development. Nothing is installable yet. See [Roadmap](#roadmap).
+> **Status:** early development. The KOReader install works end to end on an emulator with a simulated Kobo, but hasn't been tested on a real Kobo yet. See [Roadmap](#roadmap).
 
 ## How it works
 
@@ -48,8 +48,8 @@ After you eject and unplug, the Kobo should look like it's processing a book and
 
 ## Roadmap
 
-- [ ] Spike: pick the Kobo drive and write a file into a hidden folder
-- [ ] Milestone 1: install KOReader (one-click package) end to end
+- [x] Spike: pick the Kobo drive and write a file into a hidden folder (emulator; real Kobo pending)
+- [x] Milestone 1: install KOReader (one-click package) end to end (emulator; real Kobo pending)
 - [ ] Remote package catalog (new packages without an app update)
 - [ ] Detect what is already installed, plus update and uninstall
 - [ ] Plato, NickelMenu, standalone KFMon
@@ -64,6 +64,7 @@ Requires JDK 21 and the Android SDK.
 ./gradlew :androidApp:assembleDebug   # build the APK
 ./gradlew :androidApp:installDebug    # install on a connected phone
 ./gradlew jvmTest                     # run unit tests (no device needed)
+scripts/fake-kobo.sh create           # simulate a Kobo on an emulator/phone (see CLAUDE.md)
 ```
 
 Or open the project in Android Studio.

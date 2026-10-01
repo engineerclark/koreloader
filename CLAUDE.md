@@ -24,6 +24,10 @@ Re-verify before changing any of these. Sources are listed at the bottom.
   - The container is wiped and re-uploaded on every release, so filenames and versions change. Never hardcode a filename; always resolve it through the manifest.
 - `OCP-KOReader-<ver>.zip` already contains everything needed for a first install: KFMon, a `.kobo/KoboRoot.tgz` with **KFMon and NickelMenu merged**, KFMon configs (`.adds/kfmon/config/koreader.ini` etc.), NickelMenu entries (`.adds/nm/kfmon`, `.adds/nm/koreader`), `.adds/koreader/`, and icons such as `kfmon.png` and `koreader.png` at the root.
 - OCP KOReader can lag the latest KOReader release (e.g. OCP v2026.03 vs upstream v2026.07.1).
+- Archive layout, checked by downloading both on 2026-09-30 (`b2sum` and `md5` matched the manifest):
+  - Entry names are plain relative paths (`.adds/kfmon/config/kfmon.ini`), with no `./` prefix. Directory entries end in `/`.
+  - `OCP-KOReader-v2026.03.zip`: 1,214 entries, 86.6 MB unpacked, 43.6 MB zipped. `.kobo/KoboRoot.tgz` (788 KB) is already the **last** entry. Root files: `kfmon.png`, `koreader.png`.
+  - `OCP-KFMon-*.zip`: 10 entries: `kfmon.png`, `.adds/kfmon/{bin,config,log}/…`, `.kobo/KoboRoot.tgz`.
 - Forum thread guidance (first post and post #2, as pasted by the user on 2026-09-30):
   - The packages are aimed at **new users**. Launchers are mutually exclusive: between fmon and KFMon, whichever was installed last wins. **KSM always takes precedence**, so the packages are not meant for KSM users. Warn about this before installing.
   - The `ExcludeSyncFolders` tweak must be made **before unplugging**, in the same USB session as the install. After a firmware upgrade, make it during the first USB connection.
@@ -70,7 +74,8 @@ Re-verify before changing any of these. Sources are listed at the bottom.
 
 1. **`.kobo/KoboRoot.tgz` is written last**, and never directly under its final name: write `KoboRoot.tgz.part` (or similar), fsync, delete any existing `KoboRoot.tgz`, then rename. Nickel processes this file on unplug, and a truncated tarball can brick the update. If anything fails before the rename, delete the temp file.
 2. **Verify the archive before touching the device** (size + BLAKE2b for OCP; SHA-256 for GitHub assets). Download to app cache, not to the Kobo.
-3. **Stream everything.** Use `ZipInputStream` to SAF output streams with no whole-archive buffering. KOReader is about 45 MB with thousands of entries.
+3. **Stream everything.** Read the cached archive entry by entry (`java.util.zip.ZipFile`) straight into SAF output streams, with no whole-archive buffering. KOReader is about 44 MB zipped, 87 MB unpacked, 1,214 entries.
+3a. **Delete any stale `.kobo/KoboRoot.tgz` before extracting anything.** A leftover from an earlier aborted run must not be processed if this run fails.
 4. **Reject unsafe zip entries**: absolute paths, `..` segments, empty names. Normalise `\` to `/`.
 5. **Check the device first**: `.kobo/version` must exist and parse; block firmware 5.x; warn on unknown models.
 6. The Kobo config edit is append-only and idempotent. Never rewrite the whole `Kobo eReader.conf`.
@@ -114,6 +119,7 @@ androidApp ──► presentation ──► application ──► domain
 - **`:infrastructure`** implements the ports.
   - `commonMain`: Ktor client for the OCP `manifest.json` and GitHub releases, kotlinx.serialization DTOs **mapped to domain types at the boundary** (DTOs never leak out), and BLAKE2b/SHA-256 hashers.
   - `androidMain`: `SafKoboVolume` (DocumentsContract), `ZipInputStreamArchiveReader`, file-cache downloads.
+  - `jvmSharedMain` (a custom source set shared by `android` and `jvm`): adapters that need `java.io`/`java.util.zip` but not Android (`CachingFileDownloader`, `FileChecksumCalculator`, `ZipFileArchiveReader`), so they are unit-tested on the JVM. `NetworkAdapters` owns the Ktor client and exposes only port types, so `:androidApp` never depends on Ktor.
   - Split into `:infrastructure:catalog`, `:infrastructure:storage-saf` and so on once it grows.
 - **`:presentation`** depends on `:application` (and `:domain` types for display). It holds ViewModels (androidx.lifecycle ViewModel is multiplatform), immutable UI state and `StateFlow`s. No Android or Compose imports.
 - **`:androidApp`** is the composition root. It wires infrastructure adapters into use cases with manual DI, and holds the Compose screens and the Android-only glue (`ACTION_OPEN_DOCUMENT_TREE`, persisted URI permissions).
@@ -128,8 +134,8 @@ Rules:
 
 ## Roadmap
 
-1. **Spike**: SAF picker plus writing and reading back a test file in a hidden folder (`.adds/koreloader-test/hello.txt`) on the Kobo. Confirm dot-folders work on a real phone.
-2. **Milestone 1**: one hardcoded package (OCP-KOReader, which includes KFMon and NickelMenu) installed end to end: picker, `.kobo/version` check, manifest lookup, download, BLAKE2b and size verification, config append, extraction with KoboRoot last, sanity checks, eject screen.
+1. **Spike**, done: the "Storage test" screen (`RunStorageCheck`) exercises hidden folders, overwrite-with-truncate, append, rename-over-existing, recursive delete and small-file throughput in `.adds/koreloader-test`. It passed on the emulator (2026-09-30). **Still to do on a real Kobo.**
+2. **Milestone 1**, done on the emulator with `scripts/fake-kobo.sh`: the main screen installs OCP-KOReader (with KFMon and NickelMenu) end to end. That covers the picker, the `.kobo/version` check, the manifest lookup, download, size + BLAKE2b + MD5 verification, the config append, extraction with KoboRoot last, the sanity checks and the eject screen. Verified on 2026-09-30: all 1,039 files byte-identical to the zip, no temp file left, and a re-install reuses the cached download, creates no duplicates and doesn't re-append the config. **Still to do on a real Kobo, including the reboot.**
 3. Later: our own remote catalog JSON (id, name, description, version, source URL, sha256, target paths, dependencies, supported models/firmware, actions, reboot-between-steps flag), installed-state detection, Plato, NickelMenu-only, update/uninstall (KFMon uninstaller goes into `.kobo/`), store-style UI, Room/DataStore cache.
 
 ## Licensing
@@ -142,7 +148,26 @@ KOReader is AGPL-3.0, KFMon GPL-3.0+, Plato AGPL-3.0, NickelMenu MIT. **Do not b
 - Point `ANDROID_HOME` (or `local.properties` `sdk.dir`, which is git-ignored) at an Android SDK.
 - `./gradlew :androidApp:assembleDebug` builds the app.
 - `./gradlew jvmTest` runs fast unit tests for all KMP modules (no device).
+- `KORELOADER_OCP_ZIP=/path/to/OCP-KOReader-vX.zip ./gradlew :infrastructure:jvmTest --rerun-tasks` also checks that a real one-click package plans cleanly. This test is opt-in; never commit the zip, because of licensing.
 - `./gradlew :androidApp:installDebug` installs on a connected phone.
+
+## Testing without a Kobo
+
+`scripts/fake-kobo.sh` creates a fake Kobo volume at `/sdcard/FakeKobo` on a connected emulator or phone, using adb. In the app's picker, choose internal storage, then **FakeKobo**. This goes through the same SAF provider (`ExternalStorageProvider`) as a USB drive, but internal storage is ext4/f2fs: case-sensitive and much faster than a Kobo, so timings are not representative.
+
+```sh
+scripts/fake-kobo.sh create                  # .kobo/version (FW 4.38.21908, Clara BW 391) + empty Kobo eReader.conf
+scripts/fake-kobo.sh version 5.1.0           # firmware 5.x, expect "not supported"
+scripts/fake-kobo.sh version 4.5.0           # too old, expect blocked
+scripts/fake-kobo.sh version 4.38.21908 999  # unknown model, expect a warning only
+scripts/fake-kobo.sh garbage                 # unparseable .kobo/version
+scripts/fake-kobo.sh show                    # list files + print version and Kobo eReader.conf
+scripts/fake-kobo.sh remove                  # delete /sdcard/FakeKobo
+```
+
+After changing `.kobo/version`, tap **Re-check** in the app. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
+
+The closest stand-in for a real Kobo is a FAT32 USB stick containing a `.kobo/version` file, attached to a phone over OTG.
 
 ## Sources
 
