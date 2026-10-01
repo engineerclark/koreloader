@@ -2,7 +2,9 @@ package org.mmclark.koreloader.infrastructure.http
 
 import org.mmclark.koreloader.application.port.PackageDownloader
 import org.mmclark.koreloader.domain.catalog.PackageCatalog
+import org.mmclark.koreloader.infrastructure.catalog.GitHubReleasesCatalog
 import org.mmclark.koreloader.infrastructure.catalog.OcpManifestCatalog
+import org.mmclark.koreloader.infrastructure.catalog.UpstreamPackageCatalog
 import org.mmclark.koreloader.infrastructure.download.CachingFileDownloader
 import java.io.File
 
@@ -13,6 +15,6 @@ import java.io.File
 class NetworkAdapters(userAgent: String, downloadDirectory: File) {
     private val client = createHttpClient(userAgent)
 
-    val packageCatalog: PackageCatalog = OcpManifestCatalog(client)
+    val packageCatalog: PackageCatalog = UpstreamPackageCatalog(OcpManifestCatalog(client), GitHubReleasesCatalog(client))
     val packageDownloader: PackageDownloader = CachingFileDownloader(client, downloadDirectory)
 }

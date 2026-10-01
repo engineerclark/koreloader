@@ -27,7 +27,8 @@ import java.util.Locale
  * Uses [DocumentsContract] directly rather than `DocumentFile`, and caches each directory's
  * listing, so that writing thousands of files doesn't re-query the provider per lookup.
  * All operations are serialised: the cache assumes nothing else modifies the volume
- * while it is open.
+ * while it is open. Use one instance per operation (install, delete, status load), never a
+ * long-lived one: other instances, and Nickel itself between USB sessions, change the volume.
  */
 class SafKoboVolume(
     private val resolver: ContentResolver,

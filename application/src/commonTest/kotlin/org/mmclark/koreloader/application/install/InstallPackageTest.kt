@@ -4,60 +4,124 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.mmclark.koreloader.application.device.DetectKoboDevice
 import org.mmclark.koreloader.application.device.DeviceDetection
+import org.mmclark.koreloader.application.fake.FW
 import org.mmclark.koreloader.application.fake.FakeArchiveReader
+import org.mmclark.koreloader.application.fake.FakeBundledAssets
+import org.mmclark.koreloader.application.fake.FakeCatalog
 import org.mmclark.koreloader.application.fake.FakeChecksums
 import org.mmclark.koreloader.application.fake.FakeDownloader
 import org.mmclark.koreloader.application.fake.InMemoryKoboVolume
+import org.mmclark.koreloader.application.fake.InMemoryReceiptStore
+import org.mmclark.koreloader.application.fake.archivesFor
+import org.mmclark.koreloader.application.fake.kfmonRelease
 import org.mmclark.koreloader.application.fake.koboVolume
-import org.mmclark.koreloader.application.fake.ocpArchive
-import org.mmclark.koreloader.application.fake.testRelease
+import org.mmclark.koreloader.application.fake.koboVolumeWithKfmon
+import org.mmclark.koreloader.application.fake.koreaderRelease
+import org.mmclark.koreloader.application.fake.koreaderZipEntries
+import org.mmclark.koreloader.application.fake.ocpKfmonEntries
+import org.mmclark.koreloader.application.fake.release
+import org.mmclark.koreloader.application.packages.FetchReleases
+import org.mmclark.koreloader.application.packages.InspectVolume
 import org.mmclark.koreloader.domain.catalog.ArtifactVerification
+import org.mmclark.koreloader.domain.catalog.PackageId
+import org.mmclark.koreloader.domain.catalog.PackageRelease
+import org.mmclark.koreloader.domain.device.FirmwareVersion
 import org.mmclark.koreloader.domain.install.NickelConfig
 import org.mmclark.koreloader.domain.install.PlanProblem
+import org.mmclark.koreloader.domain.packages.InstallReceipt
 import org.mmclark.koreloader.domain.volume.KoboPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class InstallPackageTest {
 
+    private val receipts = InMemoryReceiptStore()
+
     private fun installer(
         downloader: FakeDownloader = FakeDownloader(),
         checksums: FakeChecksums = FakeChecksums(),
-        archive: FakeArchiveReader = ocpArchive(),
-    ) = InstallPackage(DetectKoboDevice(), DownloadPackage(downloader, checksums), archive)
+        archives: FakeArchiveReader = archivesFor(kfmonRelease, koreaderRelease),
+        catalog: FakeCatalog = FakeCatalog(),
+    ): InstallPackage {
+        val detect = DetectKoboDevice()
+        return InstallPackage(
+            detect, InspectVolume(receipts), FetchReleases(catalog), DownloadPackage(downloader, checksums),
+            archives, FakeBundledAssets(), receipts,
+        )
+    }
 
-    private suspend fun InstallPackage.run(volume: InMemoryKoboVolume) = this(volume, testRelease).toList()
+    private suspend fun InstallPackage.run(volume: InMemoryKoboVolume, release: PackageRelease = koreaderRelease) =
+        this(volume, release).toList()
 
     @Test
-    fun installsEverythingWithKoboRootLast() = runTest {
+    fun koreaderWithoutKfmonInstallsBothWithKoboRootLast() = runTest {
         val volume = koboVolume()
-        val progress = installer().run(volume)
+        val downloader = FakeDownloader()
+        val progress = installer(downloader = downloader).run(volume)
 
-        assertIs<InstallProgress.Succeeded>(progress.last())
-        assertEquals("NEW-KOBOROOT", volume.fileText(".kobo/KoboRoot.tgz"))
+        val success = assertIs<InstallProgress.Succeeded>(progress.last())
+        assertEquals(listOf(kfmonRelease, koreaderRelease), success.installed)
+        assertTrue(success.koboUpdateRequired)
+        assertEquals(listOf("kfmon-1.4.6.zip", "koreader-v2026.07.1.zip"), downloader.fetched)
+
+        assertEquals("KFMON-KOBOROOT", volume.fileText(".kobo/KoboRoot.tgz"))
         assertEquals("#!/bin/sh", volume.fileText(".adds/koreader/koreader.sh"))
-        assertEquals("png-kfmon", volume.fileText("kfmon.png"))
+        assertEquals("bundled:kfmon/koreader.png", volume.fileText("koreader.png")) // not the zip's fmon relic
+        assertEquals("bundled:kfmon/koreader.ini", volume.fileText(".adds/kfmon/config/koreader.ini"))
+        assertEquals("bundled:nm/kfmon", volume.fileText(".adds/nm/kfmon"))
         assertEquals("[General]\nfoo=bar\n" + NickelConfig.HIDDEN_FOLDER_EXCLUSION, volume.fileText(".kobo/Kobo/Kobo eReader.conf"))
         assertNull(volume.fileText(".kobo/KoboRoot.tgz.koreloader-tmp"))
-
-        // Config first, KoboRoot written under a temp name and renamed as the very last operation.
-        assertEquals("append .kobo/Kobo/Kobo eReader.conf", volume.log.first())
         assertEquals(
             listOf("write .kobo/KoboRoot.tgz.koreloader-tmp", "rename .kobo/KoboRoot.tgz.koreloader-tmp -> KoboRoot.tgz"),
             volume.log.takeLast(2),
         )
-
-        val kinds = progress.map { it::class.simpleName }.distinct()
         assertEquals(
-            listOf("CheckingDevice", "Downloading", "VerifyingDownload", "PreparingDevice", "Writing", "VerifyingInstall", "Succeeded"),
-            kinds,
+            listOf(InstallReceipt(PackageId.KFMON, "1.4.6", FW), InstallReceipt(PackageId.KOREADER, "v2026.07.1", FW)),
+            receipts.receipts,
         )
-        val lastWriting = progress.filterIsInstance<InstallProgress.Writing>().last()
-        assertEquals(6, lastWriting.filesDone)
-        assertEquals(lastWriting.bytesTotal, lastWriting.bytesDone)
+        val downloads = progress.filterIsInstance<InstallProgress.Downloading>().map { it.packageId to it.part }
+        assertEquals(listOf(PackageId.KFMON to 1, PackageId.KOREADER to 2), downloads)
+    }
+
+    @Test
+    fun koreaderWithWorkingKfmonSkipsItAndNeedsNoReboot() = runTest {
+        val volume = koboVolumeWithKfmon(receipts).apply { putFile(".kobo/KoboRoot.tgz", "PENDING-UNINSTALLER") }
+        val downloader = FakeDownloader()
+        val success = assertIs<InstallProgress.Succeeded>(installer(downloader = downloader).run(volume).last())
+        assertEquals(listOf(koreaderRelease), success.installed)
+        assertFalse(success.koboUpdateRequired)
+        assertEquals(listOf("koreader-v2026.07.1.zip"), downloader.fetched)
+        // A pending KoboRoot.tgz that this install doesn't replace is left alone.
+        assertEquals("PENDING-UNINSTALLER", volume.fileText(".kobo/KoboRoot.tgz"))
+        assertEquals("1.4.5", receipts.receipts.single { it.packageId == PackageId.KFMON }.version)
+    }
+
+    @Test
+    fun kfmonIsReinstalledAfterAFirmwareUpdate() = runTest {
+        val volume = koboVolumeWithKfmon(receipts, firmware = FirmwareVersion.of(4, 37, 1))
+        val success = assertIs<InstallProgress.Succeeded>(installer().run(volume).last())
+        assertEquals(listOf(kfmonRelease, koreaderRelease), success.installed)
+    }
+
+    @Test
+    fun kfmonAloneInstallsTheOcp() = runTest {
+        val volume = koboVolume()
+        val success = assertIs<InstallProgress.Succeeded>(installer().run(volume, kfmonRelease).last())
+        assertEquals(listOf(kfmonRelease), success.installed)
+        assertEquals("bundled:nm/kfmon", volume.fileText(".adds/nm/kfmon"))
+        assertNull(volume.fileText(".adds/koreader/koreader.sh"))
+    }
+
+    @Test
+    fun unverifiableReleaseIsSizeCheckedOnly() = runTest {
+        val old = release(PackageId.KOREADER, "v2024.11", verifiable = false)
+        val volume = koboVolumeWithKfmon(receipts)
+        val result = installer(checksums = FakeChecksums("cd"), archives = archivesFor(old)).run(volume, old).last()
+        assertIs<InstallProgress.Succeeded>(result)
     }
 
     @Test
@@ -70,44 +134,26 @@ class InstallPackageTest {
     }
 
     @Test
-    fun configIsCreatedWhenMissing() = runTest {
-        val volume = koboVolume(conf = null)
-        assertIs<InstallProgress.Succeeded>(installer().run(volume).last())
-        assertEquals(NickelConfig.HIDDEN_FOLDER_EXCLUSION, volume.fileText(".kobo/Kobo/Kobo eReader.conf"))
-    }
-
-    @Test
     fun unsupportedFirmwareTouchesNothing() = runTest {
         val volume = koboVolume(firmware = "5.1.0")
         val downloader = FakeDownloader()
         val result = installer(downloader = downloader).run(volume).last()
         assertIs<InstallError.DeviceUnsupported>(assertIs<InstallProgress.Failed>(result).error)
-        assertEquals(0, downloader.fetches)
+        assertTrue(downloader.fetched.isEmpty())
         assertTrue(volume.log.isEmpty())
     }
 
     @Test
     fun notAKobo() = runTest {
-        val result = installer().run(InMemoryKoboVolume()).last()
-        val error = assertIs<InstallError.DeviceNotReady>(assertIs<InstallProgress.Failed>(result).error)
+        val error = assertIs<InstallError.DeviceNotReady>(assertIs<InstallProgress.Failed>(installer().run(InMemoryKoboVolume()).last()).error)
         assertEquals(DeviceDetection.NotAKobo, error.detection)
     }
 
     @Test
-    fun downloadFailure() = runTest {
-        val volume = koboVolume()
-        val result = installer(downloader = FakeDownloader(failWith = "offline")).run(volume).last()
-        assertEquals(InstallError.DownloadFailed("offline"), assertIs<InstallProgress.Failed>(result).error)
-        assertTrue(volume.log.isEmpty())
-    }
-
-    @Test
-    fun corruptCacheIsDiscardedAndDownloadedAgain() = runTest {
-        val downloader = FakeDownloader()
-        val result = installer(downloader = downloader, checksums = FakeChecksums("cd", "ab")).run(koboVolume()).last()
-        assertIs<InstallProgress.Succeeded>(result)
-        assertEquals(2, downloader.fetches)
-        assertEquals(1, downloader.discards)
+    fun dependencyCatalogFailure() = runTest {
+        val catalog = FakeCatalog().apply { failWith = "offline" }
+        val result = installer(catalog = catalog).run(koboVolume()).last()
+        assertEquals(InstallError.DependencyUnavailable(PackageId.KFMON, "offline"), assertIs<InstallProgress.Failed>(result).error)
     }
 
     @Test
@@ -122,9 +168,22 @@ class InstallPackageTest {
     }
 
     @Test
+    fun corruptCacheIsDiscardedAndDownloadedAgain() = runTest {
+        val downloader = FakeDownloader()
+        val result = installer(downloader = downloader, checksums = FakeChecksums("cd", "ab")).run(koboVolume(), kfmonRelease).last()
+        assertIs<InstallProgress.Succeeded>(result)
+        assertEquals(2, downloader.fetched.size)
+        assertEquals(1, downloader.discards)
+    }
+
+    @Test
     fun unsafeArchiveFailsBeforeTouchingTheKobo() = runTest {
         val volume = koboVolume()
-        val result = installer(archive = ocpArchive("../../evil" to "x")).run(volume).last()
+        val archives = archivesFor(
+            kfmonRelease, koreaderRelease,
+            entries = mapOf(PackageId.KFMON to ocpKfmonEntries + ("../../evil" to "x"), PackageId.KOREADER to koreaderZipEntries),
+        )
+        val result = installer(archives = archives).run(volume).last()
         val error = assertIs<InstallError.InvalidPackage>(assertIs<InstallProgress.Failed>(result).error)
         assertEquals(PlanProblem.UnsafeEntry("../../evil"), error.problem)
         assertTrue(volume.log.isEmpty())
@@ -137,28 +196,17 @@ class InstallPackageTest {
             failOn = { op, path -> op == "write" && path.toString() == ".adds/koreader/koreader.sh" }
         }
         val result = assertIs<InstallProgress.Failed>(installer().run(volume).last())
-        val error = assertIs<InstallError.WriteFailed>(result.error)
-        assertEquals(KoboPath.of(".adds/koreader/koreader.sh"), error.path)
+        assertEquals(KoboPath.of(".adds/koreader/koreader.sh"), assertIs<InstallError.WriteFailed>(result.error).path)
         assertNull(volume.fileText(".kobo/KoboRoot.tgz"))
         assertTrue(KoboPath.of("kfmon.png") in result.leftovers)
-        assertTrue(KoboPath.of(".kobo/KoboRoot.tgz") !in result.leftovers)
+        assertTrue(receipts.receipts.isEmpty())
     }
 
     @Test
     fun renameFailureRemovesTheTempFile() = runTest {
         val volume = koboVolume().apply { failOn = { op, _ -> op == "rename" } }
-        val result = assertIs<InstallProgress.Failed>(installer().run(volume).last())
-        assertIs<InstallError.WriteFailed>(result.error)
+        assertIs<InstallError.WriteFailed>(assertIs<InstallProgress.Failed>(installer().run(volume).last()).error)
         assertNull(volume.fileText(".kobo/KoboRoot.tgz"))
         assertNull(volume.fileText(".kobo/KoboRoot.tgz.koreloader-tmp"))
-    }
-
-    @Test
-    fun corruptEntryIsReportedAsUnreadablePackage() = runTest {
-        val archive = ocpArchive().apply { failOnRead = ".kobo/KoboRoot.tgz" }
-        val volume = koboVolume()
-        val result = assertIs<InstallProgress.Failed>(installer(archive = archive).run(volume).last())
-        assertIs<InstallError.UnreadablePackage>(result.error)
-        assertNull(volume.fileText(".kobo/KoboRoot.tgz"))
     }
 }

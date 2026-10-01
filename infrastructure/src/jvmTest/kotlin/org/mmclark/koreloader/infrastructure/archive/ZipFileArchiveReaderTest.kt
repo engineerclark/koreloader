@@ -5,7 +5,9 @@ import org.mmclark.koreloader.application.port.ArchiveException
 import org.mmclark.koreloader.application.port.LocalFile
 import org.mmclark.koreloader.domain.install.ArchiveEntry
 import org.mmclark.koreloader.domain.install.InstallPlan
+import org.mmclark.koreloader.domain.install.PlanInput
 import org.mmclark.koreloader.domain.install.PlanResult
+import org.mmclark.koreloader.domain.packages.Packages
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -52,17 +54,28 @@ class ZipFileArchiveReaderTest {
     }
 
     /**
-     * Optional check against a real one-click package. Run with
-     * `KORELOADER_OCP_ZIP=/path/to/OCP-KOReader-vX.zip ./gradlew :infrastructure:jvmTest`.
+     * Optional checks against real upstream archives (never committed). Run with e.g.
+     * `KORELOADER_OCP_KFMON_ZIP=…/OCP-KFMon-x.zip KORELOADER_KOREADER_ZIP=…/koreader-kobo-vX.zip ./gradlew :infrastructure:jvmTest --rerun-tasks`.
      */
     @Test
-    fun realOneClickPackagePlansCleanly() = runTest {
-        val path = System.getenv("KORELOADER_OCP_ZIP") ?: return@runTest
-        val file = File(path)
-        ZipFileArchiveReader().open(LocalFile(file.path, file.length())) { archive ->
-            val plan = assertIs<PlanResult.Valid>(InstallPlan.forOneClickPackage(archive.entries)).plan
-            assertEquals(listOf(InstallPlan.KOBO_ROOT_TGZ), plan.deferredFiles.map { it.target })
-            println("Real OCP: ${plan.files.size + plan.deferredFiles.size} files, ${plan.directories.size} dirs, ${plan.totalBytes} bytes")
+    fun realArchivesPlanCleanly() = runTest {
+        val kfmon = System.getenv("KORELOADER_OCP_KFMON_ZIP")?.let(::File) ?: return@runTest
+        val koreader = System.getenv("KORELOADER_KOREADER_ZIP")?.let(::File) ?: return@runTest
+        val reader = ZipFileArchiveReader()
+        reader.open(LocalFile(kfmon.path, kfmon.length())) { kfmonArchive ->
+            reader.open(LocalFile(koreader.path, koreader.length())) { koreaderArchive ->
+                val inputs = listOf(
+                    PlanInput.Archive(0, kfmonArchive.entries, Packages.KFMON.layout),
+                    PlanInput.Bundled(Packages.KFMON.launcherFiles),
+                    PlanInput.Archive(1, koreaderArchive.entries, Packages.KOREADER.layout),
+                    PlanInput.Bundled(Packages.KOREADER.launcherFiles),
+                )
+                val plan = assertIs<PlanResult.Valid>(
+                    InstallPlan.compose(inputs, Packages.KFMON.requiredFiles + Packages.KOREADER.requiredFiles),
+                ).plan
+                assertEquals(listOf(InstallPlan.KOBO_ROOT_TGZ), plan.deferredFiles.map { it.target })
+                println("Real KFMon + KOReader: ${plan.allFiles.size} files, ${plan.directories.size} dirs, ${plan.totalBytes} bytes")
+            }
         }
     }
 }

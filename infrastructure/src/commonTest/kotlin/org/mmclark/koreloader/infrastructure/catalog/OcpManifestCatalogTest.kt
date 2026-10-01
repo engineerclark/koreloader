@@ -6,12 +6,11 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import org.mmclark.koreloader.domain.catalog.HashAlgorithm
-import org.mmclark.koreloader.domain.catalog.InstallTarget
 import org.mmclark.koreloader.domain.catalog.PackageId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class OcpManifestCatalogTest {
 
@@ -42,26 +41,26 @@ class OcpManifestCatalogTest {
         OcpManifestCatalog(HttpClient(MockEngine { respond(body, status) }))
 
     @Test
-    fun mapsKoreaderEntry() = runTest {
-        val release = catalog().latestRelease(PackageId.KOREADER)!!
-        assertEquals("v2026.03", release.version)
-        assertEquals(InstallTarget.VOLUME_ROOT, release.installTarget)
-        assertEquals("OCP-KOReader-v2026.03.zip", release.artifact.fileName)
+    fun mapsKfmonEntry() = runTest {
+        val release = catalog().releases(PackageId.KFMON, "KFMon").single()
+        assertEquals("1.4.6-191-gca31869", release.version)
+        assertEquals("2026-06-07", release.publishedOn)
         assertEquals(
-            "https://storage.gra.cloud.ovh.net/v1/AUTH_2ac4bfee353948ec8ea7fd1710574097/kfmon-pub/OCP-KOReader-v2026.03.zip",
+            "https://storage.gra.cloud.ovh.net/v1/AUTH_2ac4bfee353948ec8ea7fd1710574097/kfmon-pub/OCP-KFMon-1.4.6-191-gca31869.zip",
             release.artifact.url,
         )
-        assertEquals(43626840L, release.artifact.sizeBytes)
+        assertEquals(894583L, release.artifact.sizeBytes)
         assertEquals(setOf(HashAlgorithm.BLAKE2B_512, HashAlgorithm.MD5), release.artifact.requiredAlgorithms)
+        assertTrue(release.isVerifiable)
     }
 
     @Test
-    fun missingPackageIsNull() = runTest {
-        assertNull(catalog().latestRelease(PackageId.PLATO))
+    fun missingPackageIsEmpty() = runTest {
+        assertTrue(catalog().releases(PackageId.PLATO, "Plato").isEmpty())
     }
 
     @Test
     fun httpErrorThrows() = runTest {
-        assertFailsWith<IllegalStateException> { catalog(HttpStatusCode.NotFound, "nope").latestRelease(PackageId.KOREADER) }
+        assertFailsWith<IllegalStateException> { catalog(HttpStatusCode.NotFound, "nope").releases(PackageId.KFMON, "KFMon") }
     }
 }

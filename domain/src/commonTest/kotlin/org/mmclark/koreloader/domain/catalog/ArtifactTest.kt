@@ -3,7 +3,9 @@ package org.mmclark.koreloader.domain.catalog
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class ArtifactTest {
 
@@ -19,8 +21,10 @@ class ArtifactTest {
     }
 
     @Test
-    fun artifactRequiresAStrongChecksumHttpsAndASafeName() {
-        assertFailsWith<IllegalArgumentException> { artifact.copy(checksums = listOf(md5)) }
+    fun artifactRequiresHttpsAndASafeName() {
+        assertTrue(artifact.isVerifiable)
+        assertFalse(artifact.copy(checksums = listOf(md5)).isVerifiable)
+        assertFalse(artifact.copy(checksums = emptyList()).isVerifiable)
         assertFailsWith<IllegalArgumentException> { artifact.copy(url = "http://example.org/x.zip") }
         assertFailsWith<IllegalArgumentException> { artifact.copy(fileName = "../x.zip") }
         assertFailsWith<IllegalArgumentException> { artifact.copy(sizeBytes = 0) }
@@ -37,5 +41,7 @@ class ArtifactTest {
             artifact.verify(894583, mapOf(HashAlgorithm.MD5 to md5.hex)),
         )
         assertEquals(setOf(HashAlgorithm.MD5, HashAlgorithm.BLAKE2B_512), artifact.requiredAlgorithms)
+        // Without checksums only the size is checked.
+        assertEquals(ArtifactVerification.Verified, artifact.copy(checksums = emptyList()).verify(894583, emptyMap()))
     }
 }

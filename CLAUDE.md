@@ -60,11 +60,24 @@ Re-verify before changing any of these. Sources are listed at the bottom.
 - NickelMenu method needs KOReader 2020.05+ and firmware 4.6+. KFMon needs firmware 2.9.0+.
 - A Kobo firmware update disables KFMon (reinstall it with the OCP-KFMon package). NickelMenu survives firmware updates.
 
+- Release history: GitHub has every stable release (247 total; `koreader-kobo-<tag>.zip` assets go back years). `ota` is a prerelease of nightlies and is filtered out. **A SHA-256 `digest` exists only for v2025.08 and later**; older releases have none.
+- Version marker on the volume: `.adds/koreader/git-rev` (e.g. `v2026.07.1`).
+- The release zip holds `koreader/…` plus a stray top-level `koreader.png` (an old fmon relic that `one-click.py` deletes). We map `koreader/` to `.adds/koreader/` and ignore the rest.
+- User data in `.adds/koreader` (`frontend/datastorage.lua`, `readhistory.lua`): `settings.reader.lua`(`.old`), `history.lua`(`.old`), `defaults.{custom,persistent,legacy}.lua`, and the folders `settings/` (plugin settings, statistics and vocabulary DBs), `docsettings/`, `hashdocsettings/`, `history/`, `statistics/`, `patches/`, `styletweaks/`, `screenshots/`, `clipboard/` and `icons/`. Per-book `.sdr` sidecars live next to the books and are never touched.
+
+### KFMon launcher files and uninstaller
+- KFMon has **no GitHub releases**. Only the current build exists: OCP-KFMon from the manifest, or `KFMon-v*.zip` on the MobileRead thread t=274231.
+- `OCP-KFMon` contains `kfmon.png`, `.adds/kfmon/{config/kfmon.ini,bin/kfmon-printlog.sh,log/}` and the KFMon+NickelMenu `KoboRoot.tgz`. It has **no** launcher configs (`one-click.py` strips them).
+- Launcher files per app, from the kfmon repo and **bundled** in koreloader (see `THIRD_PARTY_ASSETS.md`; byte-identical to OCP-KOReader's): `koreader.png` at the root plus `.adds/kfmon/config/koreader.ini`; `icons/plato.png` plus `.adds/kfmon/config/plato.ini`; NickelMenu shards `.adds/nm/{kfmon,koreader,plato}`. `nm/kfmon` is a `generator : main : kfmon` line that lists KFMon watches in the Home menu.
+- Uninstall: the official `KFMon-Uninstaller.zip` (MobileRead attachment) contains a `KoboRoot.tgz` that swaps in `kfmon-uninstall.sh` as `kfmon-update.sh`, plus an `on-animator.sh`. We bundle that `KoboRoot.tgz` and place it as `.kobo/KoboRoot.tgz`. On the next boot the Kobo deletes `/usr/local/kfmon`, KFMon's onboard configs and log, **the KOReader and Plato launcher files** (`koreader.png`, `icons/plato.png`, `.adds/kfmon/config/*.ini`, `.adds/nm/{kfmon,koreader,plato,doc}`), and any empty dirs. An emptied `.adds/nm` makes NickelMenu uninstall itself.
+
 ### NickelMenu (`pgaskin/NickelMenu`)
 - Release asset `KoboRoot.tgz`. Configs live in `.adds/nm/`.
 
 ### Plato (`baskerville/plato`)
-- Release asset `plato-<tag>.zip`, extracted into `.adds/plato/`. KFMon config `.adds/kfmon/config/plato.ini`, icon `icons/plato.png`.
+- Release asset `plato-<tag>.zip` (files at the zip root), extracted into `.adds/plato/`. KFMon config `.adds/kfmon/config/plato.ini`, icon `icons/plato.png`. 96 releases; SHA-256 digest only for 0.9.45 and later.
+- **No version file**: the installed version comes from koreloader's receipt, or is "unknown".
+- User data: `.adds/plato/Settings.toml` and `config.sh`. Library metadata sits in each default library root (`library.rs`): `.metadata.json`, `.fat32-epoch`, `.reading-states/` and `.thumbnail-previews/` in `/`, `.kobo/dropbox/` and `.kobo/kepub/`. **Never touch `.trash`**, which holds deleted books.
 
 ### `.kobo/version`
 - One line of comma-separated fields. calibre's Kobo driver reads `[0]` as the serial, `[2]` as the firmware version (e.g. `4.38.21908`), and the **last** field as the model ID string `00000000-0000-0000-0000-000000000NNN`, where NNN is the device ID.
@@ -75,12 +88,15 @@ Re-verify before changing any of these. Sources are listed at the bottom.
 1. **`.kobo/KoboRoot.tgz` is written last**, and never directly under its final name: write `KoboRoot.tgz.part` (or similar), fsync, delete any existing `KoboRoot.tgz`, then rename. Nickel processes this file on unplug, and a truncated tarball can brick the update. If anything fails before the rename, delete the temp file.
 2. **Verify the archive before touching the device** (size + BLAKE2b for OCP; SHA-256 for GitHub assets). Download to app cache, not to the Kobo.
 3. **Stream everything.** Read the cached archive entry by entry (`java.util.zip.ZipFile`) straight into SAF output streams, with no whole-archive buffering. KOReader is about 44 MB zipped, 87 MB unpacked, 1,214 entries.
-3a. **Delete any stale `.kobo/KoboRoot.tgz` before extracting anything.** A leftover from an earlier aborted run must not be processed if this run fails.
+3a. **When an install writes a `KoboRoot.tgz`, delete any stale one before extracting anything.** A leftover from an earlier aborted run must not be processed if this run fails. Installs that don't write one (e.g. KOReader on a working KFMon) leave a pending one alone.
 4. **Reject unsafe zip entries**: absolute paths, `..` segments, empty names. Normalise `\` to `/`.
 5. **Check the device first**: `.kobo/version` must exist and parse; block firmware 5.x; warn on unknown models.
 6. The Kobo config edit is append-only and idempotent. Never rewrite the whole `Kobo eReader.conf`.
 7. Never claim success until the post-install sanity checks pass. Then show the eject instructions: eject from Android (Settings, Storage, or the notification), unplug, and wait for "Updating" then a reboot. If the Kobo does not reboot, the install failed; say so in the troubleshooting text.
-8. Before installing, show a checklist: fully reboot the Kobo, connect from the Home screen without opening documents, and not for KSM users. Also warn that fmon and KFMon are mutually exclusive.
+8. **Dependencies**: KOReader and Plato depend on KFMon. If KFMon is missing, needs a reinstall after a firmware update, or has a pending removal, its latest release is installed in the same run, first. That gives one Kobo reboot.
+9. **Delete keeps user data by default.** The opt-in checkbox ("Also delete settings and reading history") is off by default and, when ticked, lists exactly what will be removed (`UninstallPackage.preview`).
+10. **Unverifiable releases** (no published checksum) are labelled "no checksum" and need an explicit confirmation before installing. Only their size is checked.
+11. Before installing, show a checklist: fully reboot the Kobo, connect from the Home screen without opening documents, and not for KSM users. Also warn that fmon and KFMon are mutually exclusive.
 
 ## Android storage notes (SAF)
 
@@ -90,6 +106,7 @@ Re-verify before changing any of these. Sources are listed at the bottom.
 - `renameDocument` also avoids collisions by renaming, so delete the target first.
 - Flush important files with `ParcelFileDescriptor` + `Os.fsync` (KoboRoot.tgz, Kobo eReader.conf).
 - Apps cannot eject a volume. Instruct the user instead.
+- **A `SafKoboVolume` must live for one operation only** (a status load, an install or a delete): `KoboVolumeFactory.open` per operation. Its listing cache goes stale when another instance writes, or when Nickel changes files between USB sessions. A long-lived instance showed "Not installed" right after an install.
 - Fallback if SAF is unreliable or slow: libaums (USB host + FAT32 directly). Keep it behind the same `KoboVolume` interface.
 
 ## Architecture (domain-driven, hexagonal, KMP-ready)
@@ -113,16 +130,29 @@ androidApp ──► presentation ──► application ──► domain
 ```
 
 - **`:domain`** has no dependencies besides the Kotlin stdlib: no coroutines, serialization, I/O or framework types.
-  It holds `Package`/`PackageId`/`PackageVersion`, `Checksum` (algorithm + hex), `KoboDevice` (serial, `FirmwareVersion`, `DeviceModel`), `DeviceCompatibilityPolicy` (block FW 5.x, warn on unknown model), install rules as pure functions (`InstallPlan`: entry ordering with KoboRoot last, `ArchivePath` validation that rejects `..` and absolute paths, the `ExcludeSyncFolders` append rule), and repository interfaces such as `PackageCatalog`.
+  It holds:
+  - catalog: `PackageId`, `PackageRelease`, `Artifact`, `Checksum`, and the `PackageCatalog` repository interface;
+  - device: `KoboDevice`, `FirmwareVersion`, `DeviceModel`, `DeviceCompatibilityPolicy`;
+  - packages: `Packages`/`PackageDefinition` (static knowledge per package: marker file, version file, `ArchiveLayout`, bundled launcher files, dependencies, required files, `Removal` rule), `InstalledStateResolver`, `PackageStatusPolicy` (update available, KFMon reinstall after firmware change, removal pending), `InstallReceipt`, `RemovalPlan`;
+  - install: `InstallPlan.compose` (multiple archives plus bundled files, safe paths, case-insensitive conflicts, KoboRoot deferred), `NickelConfig`;
+  - volume: `KoboPath`.
 - **`:application`** depends only on `:domain` (and kotlinx.coroutines).
-  It holds use cases (`DetectKoboDevice`, `ResolvePackage`, `DownloadAndVerifyPackage`, `InstallPackage`, later `UninstallPackage`) and the **ports** they need: `KoboVolume` (list/read/write/rename/delete/fsync by relative path), `PackageDownloader`, `ArchiveReader` (streaming entries), `HashFunction`/`ChecksumVerifier`, `Clock` if needed. It orchestrates domain rules and reports progress as a `Flow`.
+  It holds:
+  - use cases: `DetectKoboDevice`, `FetchReleases`, `InspectVolume`, `GetPackageOverview`, `DownloadPackage`, `InstallPackage` (resolves dependencies, records receipts), `UninstallPackage` (plus `preview`) and `RunStorageCheck`;
+  - ports: `KoboVolume`/`KoboVolumeFactory`, `PackageDownloader`, `ChecksumCalculator`, `ArchiveReader`, `BundledAssets` and `ReceiptStore`.
+  Progress is reported as a `Flow`.
 - **`:infrastructure`** implements the ports.
-  - `commonMain`: Ktor client for the OCP `manifest.json` and GitHub releases, kotlinx.serialization DTOs **mapped to domain types at the boundary** (DTOs never leak out), and BLAKE2b/SHA-256 hashers.
-  - `androidMain`: `SafKoboVolume` (DocumentsContract), `ZipInputStreamArchiveReader`, file-cache downloads.
-  - `jvmSharedMain` (a custom source set shared by `android` and `jvm`): adapters that need `java.io`/`java.util.zip` but not Android (`CachingFileDownloader`, `FileChecksumCalculator`, `ZipFileArchiveReader`), so they are unit-tested on the JVM. `NetworkAdapters` owns the Ktor client and exposes only port types, so `:androidApp` never depends on Ktor.
+  - `commonMain`:
+    - `UpstreamPackageCatalog` (15-minute cache, to respect GitHub's 60 requests/hour anonymous limit), which combines `OcpManifestCatalog` for KFMon and `GitHubReleasesCatalog` for KOReader and Plato;
+    - `VolumeReceiptStore` (`.adds/koreloader/receipts.json`);
+    - `Blake2b`.
+    DTOs are **mapped to domain types at the boundary** and never leak out.
+  - `androidMain`: `SafKoboVolume` (DocumentsContract).
+  - `jvmSharedMain` (a custom source set shared by `android` and `jvm`): adapters that need `java.io`/`java.util.zip` but not Android (`CachingFileDownloader` (keeps 3 files), `FileChecksumCalculator`, `ZipFileArchiveReader`, and `ResourceBundledAssets`, which serves Java resources whose SHA-256s are pinned in `BundledAssetsTest`), so they are unit-tested on the JVM. `NetworkAdapters` owns the Ktor client and exposes only port types, so `:androidApp` never depends on Ktor.
   - Split into `:infrastructure:catalog`, `:infrastructure:storage-saf` and so on once it grows.
 - **`:presentation`** depends on `:application` (and `:domain` types for display). It holds ViewModels (androidx.lifecycle ViewModel is multiplatform), immutable UI state and `StateFlow`s. No Android or Compose imports.
 - **`:androidApp`** is the composition root. It wires infrastructure adapters into use cases with manual DI, and holds the Compose screens and the Android-only glue (`ACTION_OPEN_DOCUMENT_TREE`, persisted URI permissions).
+  Screens (Navigation Compose): `home` (pick the drive, device card, "Manage Kobo packages"), `packages` (grid of tiles with status chips), `package/{id}` (status, version dropdown, install/update/reinstall/older version, delete dialog), `storage` (the spike). `HomeViewModel` is activity-scoped and owns the selected `VolumeRef`; the other ViewModels are scoped to their destination.
 
 Rules:
 - Never import `java.*`/`android.*` in any `commonMain`. Platform code lives in `androidMain` of `:infrastructure` (or in `:androidApp`).
@@ -136,11 +166,24 @@ Rules:
 
 1. **Spike**, done: the "Storage test" screen (`RunStorageCheck`) exercises hidden folders, overwrite-with-truncate, append, rename-over-existing, recursive delete and small-file throughput in `.adds/koreloader-test`. It passed on the emulator (2026-09-30). **Still to do on a real Kobo.**
 2. **Milestone 1**, done on the emulator with `scripts/fake-kobo.sh`: the main screen installs OCP-KOReader (with KFMon and NickelMenu) end to end. That covers the picker, the `.kobo/version` check, the manifest lookup, download, size + BLAKE2b + MD5 verification, the config append, extraction with KoboRoot last, the sanity checks and the eject screen. Verified on 2026-09-30: all 1,039 files byte-identical to the zip, no temp file left, and a re-install reuses the cached download, creates no duplicates and doesn't re-append the config. **Still to do on a real Kobo, including the reboot.**
-3. Later: our own remote catalog JSON (id, name, description, version, source URL, sha256, target paths, dependencies, supported models/firmware, actions, reboot-between-steps flag), installed-state detection, Plato, NickelMenu-only, update/uninstall (KFMon uninstaller goes into `.kobo/`), store-style UI, Room/DataStore cache.
+3. **Package manager**, done on the emulator (2026-09-30):
+   - home, packages grid and detail screens;
+   - KFMon, KOReader and Plato tiles with installed, update and reinstall-needed status;
+   - version history from GitHub;
+   - install, update and older-version installs with automatic KFMon;
+   - delete that keeps user data by default, with an opt-in to remove it;
+   - KFMon delete through the official uninstaller, shown as "removal pending".
+   Verified flows: KOReader v2024.11 (unverified) installed with KFMon, then updated to v2026.07.1 (KFMon skipped, no reboot needed); Plato installed; KOReader deleted with settings kept; KFMon uninstaller placed (byte-identical). **Still to do on a real Kobo.**
+4. Later:
+   - our own remote catalog JSON, so packages can change without an app update;
+   - NickelMenu as its own package;
+   - removing stale files on updates (today an update overwrites files but doesn't delete ones the new version dropped, same as unzip and the OCPs);
+   - WorkManager or a foreground service for long installs;
+   - Room/DataStore cache.
 
 ## Licensing
 
-KOReader is AGPL-3.0, KFMon GPL-3.0+, Plato AGPL-3.0, NickelMenu MIT. **Do not bundle their binaries in the APK or repo.** Fetch them from upstream at install time.
+koreloader itself will be GPL (copyleft), so bundling GPL/AGPL artwork and scripts is fine. Every bundled third-party file is listed in `THIRD_PARTY_ASSETS.md` with its source. The packages themselves (KOReader, Plato, KFMon binaries) are **not** bundled: they are fetched from upstream at install time, so users always get upstream's builds. Licenses: KOReader AGPL-3.0, KFMon GPL-3.0+, Plato AGPL-3.0, NickelMenu MIT.
 
 ## Build
 
@@ -168,6 +211,8 @@ scripts/fake-kobo.sh remove                  # delete /sdcard/FakeKobo
 After changing `.kobo/version`, tap **Re-check** in the app. `ANDROID_SERIAL` picks the device when several are connected; `ADB` overrides the adb path. The default is adb on PATH, then `$ANDROID_HOME`, then `~/Library/Android/sdk`.
 
 The closest stand-in for a real Kobo is a FAT32 USB stick containing a `.kobo/version` file, attached to a phone over OTG.
+
+`scripts/emulator-ui.sh` drives the app over adb for quick manual checks: `texts` lists the on-screen text, `tap "<regex>"` taps the first element whose text matches, `shot <file.png>` takes a screenshot. When tapping buttons, match their full label (e.g. `"^Install "`, not a word that also appears in status text). If a tap reports "not found", stop: nothing happened.
 
 ## Sources
 

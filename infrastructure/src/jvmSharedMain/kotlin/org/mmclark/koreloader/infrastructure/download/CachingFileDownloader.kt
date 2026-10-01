@@ -18,13 +18,15 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 /**
- * Downloads artifacts into [directory] (the app's cache), keeping only the most recent one.
+ * Downloads artifacts into [directory] (the app's cache), keeping the [keep] most recent ones
+ * (an install can need several: e.g. KFMon and KOReader).
  * A file is written as `<name>.part` and renamed when complete, so a cached file is always
  * a finished download (which the caller still verifies).
  */
 class CachingFileDownloader(
     private val client: HttpClient,
     private val directory: File,
+    private val keep: Int = 3,
 ) : PackageDownloader {
 
     override suspend fun fetch(artifact: Artifact, onProgress: suspend (Long, Long?) -> Unit): LocalFile =
@@ -48,11 +50,11 @@ class CachingFileDownloader(
         if (!directory.isDirectory && !directory.mkdirs()) throw PackageDownloadException("Can't create $directory")
         val target = File(directory, artifact.fileName)
         if (target.isFile && target.length() == artifact.sizeBytes) {
+            target.setLastModified(System.currentTimeMillis())
             onProgress(target.length(), artifact.sizeBytes)
             return LocalFile(target.path, target.length())
         }
-        // Only one package is cached at a time; they're tens of MB each.
-        directory.listFiles()?.forEach { it.delete() }
+        prune()
 
         val part = File(directory, artifact.fileName + ".part")
         client.prepareGet(artifact.url).execute { response ->
@@ -80,6 +82,16 @@ class CachingFileDownloader(
         }
         if (!part.renameTo(target)) throw PackageDownloadException("Can't finalise download")
         return LocalFile(target.path, target.length())
+    }
+
+    /** Removes partial downloads and all but the newest `keep - 1` files, making room for one more. */
+    private fun prune() {
+        val files = directory.listFiles()?.toList().orEmpty()
+        files.filter { it.name.endsWith(".part") }.forEach { it.delete() }
+        files.filter { it.isFile && !it.name.endsWith(".part") }
+            .sortedByDescending { it.lastModified() }
+            .drop(keep - 1)
+            .forEach { it.delete() }
     }
 
     private companion object {

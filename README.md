@@ -2,9 +2,9 @@
 
 Install [KOReader](https://github.com/koreader/koreader), [Plato](https://github.com/baskerville/plato), [KFMon](https://github.com/NiLuJe/kfmon) and [NickelMenu](https://github.com/pgaskin/NickelMenu) on a Kobo e-reader **from your Android phone**, with no computer needed.
 
-Plug the Kobo into your phone with a USB-C OTG cable, tap **Connect** on the Kobo, choose a package in the app, and tap **Install**.
+Plug the Kobo into your phone with a USB-C OTG cable, tap **Connect** on the Kobo, choose the Kobo drive in the app, and open **Manage Kobo packages**. Each package shows whether it's installed and whether an update is available. Install the latest or an older version, or delete it.
 
-> **Status:** early development. The KOReader install works end to end on an emulator with a simulated Kobo, but hasn't been tested on a real Kobo yet. See [Roadmap](#roadmap).
+> **Status:** early development. Installing, updating and deleting work end to end on an emulator with a simulated Kobo, but haven't been tested on a real Kobo yet. See [Roadmap](#roadmap).
 
 ## How it works
 
@@ -38,22 +38,21 @@ After you eject and unplug, the Kobo should look like it's processing a book and
 
 ## Supported packages
 
-| Package | Status |
-| --- | --- |
-| KOReader (one-click: KFMon + NickelMenu + KOReader) | Milestone 1 |
-| KFMon (standalone, e.g. after a Kobo firmware update) | Planned |
-| Plato | Planned |
-| NickelMenu only | Planned |
-| KFMon uninstaller | Planned |
+| Package | Source | Versions | Delete |
+| --- | --- | --- | --- |
+| KFMon (includes NickelMenu) | NiLuJe's one-click package | Latest only (no older builds are published) | Official uninstaller, which runs on the Kobo after unplugging |
+| KOReader | GitHub releases | All releases; older ones without a checksum are labelled | Keeps settings and history unless you choose otherwise |
+| Plato | GitHub releases | All releases; older ones without a checksum are labelled | Keeps settings and library data unless you choose otherwise |
+
+KOReader and Plato need KFMon to start. If it's missing, or a Kobo firmware update disabled it, koreloader installs it in the same step.
 
 ## Roadmap
 
 - [x] Spike: pick the Kobo drive and write a file into a hidden folder (emulator; real Kobo pending)
 - [x] Milestone 1: install KOReader (one-click package) end to end (emulator; real Kobo pending)
+- [x] Package manager: tiles with installed/update status, version history, install/update/older versions, delete (emulator; real Kobo pending)
 - [ ] Remote package catalog (new packages without an app update)
-- [ ] Detect what is already installed, plus update and uninstall
-- [ ] Plato, NickelMenu, standalone KFMon
-- [ ] Store-style UI
+- [ ] NickelMenu as its own package
 - [ ] iOS (Kotlin Multiplatform). Blocked on how iOS exposes USB drives.
 
 ## Building
@@ -65,6 +64,7 @@ Requires JDK 21 and the Android SDK.
 ./gradlew :androidApp:installDebug    # install on a connected phone
 ./gradlew jvmTest                     # run unit tests (no device needed)
 scripts/fake-kobo.sh create           # simulate a Kobo on an emulator/phone (see CLAUDE.md)
+scripts/emulator-ui.sh texts          # read the app's screen over adb
 ```
 
 Or open the project in Android Studio.
@@ -98,6 +98,6 @@ All the hard work is done by the upstream projects:
 - [Plato](https://github.com/baskerville/plato) by baskerville (AGPL-3.0)
 - [NickelMenu](https://github.com/pgaskin/NickelMenu) by pgaskin (MIT)
 
-koreloader does not bundle any of these. Packages are downloaded from their official distribution points when you install them.
+The packages are downloaded from their official distribution points when you install them. koreloader bundles only small upstream files (logos, KFMon launcher configs and the KFMon uninstaller), listed in [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
 
-koreloader is not affiliated with Rakuten Kobo or any of the projects above. License: TBD.
+koreloader is not affiliated with Rakuten Kobo or any of the projects above. License: GPL (exact version TBD).

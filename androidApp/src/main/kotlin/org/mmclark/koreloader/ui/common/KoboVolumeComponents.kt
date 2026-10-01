@@ -65,10 +65,10 @@ private fun persistAccess(context: Context, uri: Uri) {
 
 /** Shows what was found on the selected volume. */
 @Composable
-fun DeviceCard(volume: VolumeRef?, detection: DeviceDetection?) {
+fun DeviceCard(volume: VolumeRef?, detection: DeviceDetection?, prominent: Boolean = false) {
     if (volume == null) return
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(if (prominent) 24.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when (detection) {
                 null -> Busy("Reading .kobo/version…")
                 is DeviceDetection.VolumeUnavailable ->
@@ -78,7 +78,10 @@ fun DeviceCard(volume: VolumeRef?, detection: DeviceDetection?) {
                 is DeviceDetection.VersionUnreadable ->
                     Text("Found .kobo, but couldn't read .kobo/version (${detection.contents ?: "missing"}).")
                 is DeviceDetection.Detected -> {
-                    Text(detection.device.model.displayName, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        detection.device.model.displayName,
+                        style = if (prominent) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
+                    )
                     Text("Firmware ${detection.device.firmware} · Serial ${detection.device.serial}")
                     CompatibilityText(detection.compatibility)
                 }
